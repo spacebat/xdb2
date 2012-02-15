@@ -15,9 +15,8 @@
   (end 0 :type word :read-only t))
 
 (defun scale-file (stream size)
-  (file-position stream (1- size))
-  (write-byte 0 stream)
-  (finish-output stream))
+  (sb-posix:ftruncate (sb-sys:fd-stream-fd stream)
+                      (:dbg size)))
 
 (defun mmap (file-stream
              &key direction size)
@@ -141,18 +140,34 @@
           (string-sap (sb-sys:vector-sap string)))
       (copy-mem string-sap mmap-sap length))))
 
-(defmacro with-io-file ((stream file &key (direction :input) size)
+(defmacro with-io-file ((stream file &key append (direction :input) size)
                         &body body)
-  (let ((fd-stream (gensym)))
+  (let ((fd-stream (gensym))
+        (size-sym (gensym))
+        (length-sym (gensym)))
     `(with-open-file (,fd-stream ,file
                                  :direction (if (eql ,direction :output)
                                                 :io
                                                 ,direction)
-                                 :if-exists :supersede
+                                 :if-exists (if ,append
+                                                :append
+                                                :supersede)
+                                 :if-does-not-exist :create
                                  :element-type '(unsigned-byte 8))
-       (let ((,stream (mmap ,fd-stream :direction ,direction :size ,size)))
+       
+       (let* ((,size-sym ,size)
+              (,length-sym (and ,append
+                               (file-length ,fd-stream)))
+              (,stream (mmap ,fd-stream
+                             :direction ,direction
+                             :size (+ (if ,append
+                                          ,length-sym
+                                          0)
+                                      ,size-sym))))
          (unwind-protect
-              (progn ,@body)
+              (progn (when ,append
+                       (advance-stream ,length-sym ,stream))
+                     ,@body)
            (progn (munmap ,stream)
                   (when (eql ,direction :output)
                     (sb-posix:fdatasync

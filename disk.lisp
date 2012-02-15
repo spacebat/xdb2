@@ -100,14 +100,17 @@
 (defgeneric write-object (object stream))
 (defgeneric object-size (object))
 
-(defun measure-size ()
+(defun measure-size (&optional document)
   (let ((result (+ +id-length+ +sequence-length+)))
     (loop for class in *classes*
           do (incf result (object-size class)))
-    (map-docs *collection*
-              (lambda (document)
-                (incf result
-                      (standard-object-size document))))
+    (if document
+        (incf result
+              (standard-object-size document))
+        (map-docs *collection*
+                  (lambda (document)
+                    (incf result
+                          (standard-object-size document)))))
     (setf (fill-pointer *packages*) 0)
     result))
 
@@ -855,3 +858,18 @@
                      :direction :output
                      :size (measure-size))
         (dump-data size stream)))))
+
+(defun dump-doc (size document stream)
+  (write-classes-info size stream)
+  (write-standard-object document stream))
+
+(defun save-doc (collection document &optional file)
+  (let* ((*collection* collection)
+         (*classes* nil))
+    (prepare-data)
+    (with-packages
+      (with-io-file (stream file
+                     :direction :output
+                     :append t
+                     :size (measure-size document))
+        (dump-doc 1 document stream)))))

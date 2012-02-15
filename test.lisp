@@ -32,10 +32,10 @@
 
 (defun test ()
   (let* ((db (make-instance 'xdb :location "/tmp/db-test/"))
-         (col (add-collection db "test" :load-from-file-t nil)))
-    (vector-push-extend (make-instance 'document2 :key "dd") (docs col))
-    (time (test-store-doc col 10000))
-    (time (snapshot db))
+         (col (add-collection db "test" :load-from-file nil)))
+    (vector-push-extend (make-instance 'document :key "dd") (docs col))
+    (time (test-store-doc col 1))
+    ;; (time (snapshot db))
     ;; (time (sum col "eid"))
     ;; (time (find-doc col "eid" 50))
     ;; (time (sort-collection col))
@@ -44,7 +44,7 @@
 #|
 
 (defparameter db )
-(defparameter col (add-collection db "test" :load-from-file-t nil))
+(defparameter col (add-collection db "test" :load-from-file nil))
 (time (test-store-doc col 1000))
 (time (sum col "eid"))
 (time (find-doc col "eid" 50))

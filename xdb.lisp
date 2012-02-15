@@ -56,31 +56,26 @@
                 (when (funcall test doc docx)
                   (return-from find-duplicate-doc docx))))))
 
-(defgeneric store-doc (collection doc &key stream check-duplicate-function)
+(defgeneric store-doc (collection doc &key check-duplicate-function)
   (:documentation "Serialize the doc to file and add it to the collection."))
 
 (defmethod store-doc ((collection collection) doc
-                      &key stream (check-duplicate-function 'duplicate-doc-p))
+                      &key (check-duplicate-function 'duplicate-doc-p))
   (let ((dup (and check-duplicate-function
                   (find-duplicate-doc collection doc
                                       :func check-duplicate-function))))
     (if dup
         (setf (data dup) (data doc))
         (vector-push-extend doc (docs collection)))
-    ;; (serialize-sexp doc stream)
-    )
+    (serialize-doc collection doc))
   collection)
 
-(defgeneric serialize-doc (collection doc &key stream)
+(defgeneric serialize-doc (collection doc &key)
   (:documentation "Serialize the doc to file."))
 
-(defmethod serialize-doc ((collection collection) doc &key stream )
-  (when stream
-    (serialize-sexp doc stream))
-  (unless stream
-    (let ((strm (open-stream (format nil "~A.log" (path collection)))))
-      (serialize-sexp doc strm)
-      (close-stream strm)))
+(defmethod serialize-doc ((collection collection) doc &key)
+  (save-doc collection doc
+            (make-pathname :type "log" :defaults (path collection)))
   collection)
 
 (defgeneric serialize-docs (collection &key stream check-duplicate-function)
@@ -110,20 +105,26 @@
   (gethash name (collections db)))
 
 
-(defgeneric add-collection (xdb name &key load-from-file-t)
+(defgeneric add-collection (xdb name &key load-from-file)
   (:documentation "Adds a collection to the db."))
 
-(defmethod add-collection ((db xdb) name &key load-from-file-t)
-  (unless (gethash name (collections db))
-    (setf (gethash name
-                   (collections db))
-          (make-instance 'collection :name name
-                         :path (format nil "~A~A" (location db) name)))
-    (initialize-doc-container (gethash name (collections db))))
-  (when load-from-file-t
-    (load-from-file (gethash name (collections db))
-                    (format nil "~A~A.snapshot" (location db) name)))
-  (gethash name (collections db)))
+(defun make-new-collection (name db)
+  (let ((collection
+          (make-instance 'collection
+                         :name name
+                         :path (merge-pathnames name (location db)))))
+    (initialize-doc-container collection)
+    collection))
+
+(defmethod add-collection ((db xdb) name &key load-from-file)
+  (let ((collection (or (gethash name (collections db))
+                        (setf (gethash name (collections db))
+                              (make-new-collection name db)))))
+    (when load-from-file
+      (load-from-file collection
+                      (make-pathname :defaults (path collection)
+                                     :type "snapshot")))
+    collection))
 
 (defgeneric snapshot (collection)
   (:documentation "Write out a snapshot."))
@@ -134,24 +135,26 @@
                        (get-decoded-time)
     (format nil "~A~A~A_~A~A~A" yr mon day hr min sec)))
 
+(defun append-date (name)
+  (format nil "~a-~a" name (file-date)))
+
 (defmethod snapshot ((collection collection))
-  (ensure-directories-exist
-   (format nil
-           "~Abackup/"
-           (make-pathname :directory (pathname-directory (path collection)))))
-  (let ((log (translate-pathname
-              (format nil "~A.log" (path collection))
-              (format nil "**/~A.log" (name collection) )
-              (format nil "**/backup/~A.log~A" (name collection) (file-date) )))
-        (snap (translate-pathname
-               (format nil "~A.snapshot" (path collection))
-               (format nil "**/~A.snapshot" (name collection) )
-               (format nil "**/backup/~A.log~A" (name collection) (file-date) ))))
-    (if (probe-file (format nil "~A.snapshot" (path collection)))
-        (rename-file (format nil "~A.snapshot" (path collection)) snap))
-    (if (probe-file (format nil "~A.log" (path collection)))
-        (rename-file (format nil "~A.log" (path collection)) log)))
-  (save-data collection (format nil "~A.snapshot" (path collection))))
+  (let* ((backup (merge-pathnames "backup/" (path collection)))
+         (log (make-pathname :type "log" :defaults (path collection)))
+         (snap (make-pathname :type "snap" :defaults (path collection)))
+         (backup-name (append-date (name collection)))
+         (log-backup (make-pathname :name backup-name
+                                    :type "log"
+                                    :defaults backup))
+         (snap-backup (make-pathname :name backup-name
+                                     :type "snap"
+                                     :defaults backup)))
+    (ensure-directories-exist backup)
+    (when (probe-file snap)
+      (rename-file snap snap-backup))
+    (when (probe-file log)
+      (rename-file log log-backup))
+    (save-data collection snap)))
 
 (defmethod snapshot ((db xdb))
   (maphash (lambda (key value)
@@ -168,7 +171,7 @@
       (setf (gethash (pathname-name path) unique-collections) (pathname-name path)))
     (maphash  #'(lambda (key value)
                   (declare (ignore key))
-               (add-collection db value :load-from-file-t t))
+               (add-collection db value :load-from-file t))
              unique-collections)))
 
 
