@@ -160,10 +160,11 @@
                                (file-length ,fd-stream)))
               (,stream (mmap ,fd-stream
                              :direction ,direction
-                             :size (+ (if ,append
-                                          ,length-sym
-                                          0)
-                                      ,size-sym))))
+                             :size (and (eql ,direction :output)
+                                        (+ (if ,append
+                                               ,length-sym
+                                               0)
+                                           ,size-sym)))))
          (unwind-protect
               (progn (when ,append
                        (advance-stream ,length-sym ,stream))
