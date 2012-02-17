@@ -3,7 +3,7 @@
 ;;; This software is in the public domain and is
 ;;; provided with absolutely no warranty.
 
-(in-package #:xdb)
+(in-package #:xdb2)
 
 (define-compiler-macro read-n-bytes (&whole form bytes stream)
   (case bytes

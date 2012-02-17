@@ -1,6 +1,6 @@
 ;;; -*- Mode: Lisp -*-
 
-(in-package #:xdb)
+(in-package #:xdb2)
 
 (defvar *collection* nil)
 (defvar *classes* nil)
@@ -853,6 +853,7 @@
   (let* ((*collection* collection)
          (*classes* nil)
          (size (prepare-data)))
+
     (with-packages
       (with-io-file (stream file
                      :direction :output

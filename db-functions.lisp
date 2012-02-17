@@ -1,16 +1,29 @@
-(in-package #:xdb)
+(in-package #:xdb2)
 
-(defclass document ()
+(defclass doc ()
   ((collection :initarg :collection
-               :accessor collection)
-   (data :initarg :data
-         :initform (make-hash-table :test 'equal)
-         :accessor data)
+               :accessor collection
+               :storep nil)
    (key :initarg :key
         :accessor key)
    (type :initarg :type
          :initform nil
          :accessor doc-type))
+  (:metaclass storable-class))
+
+(defclass document ()
+  (
+(collection :initarg :collection
+               :accessor collection
+               :storep nil)
+   (key :initarg :key
+        :accessor key)
+   (type :initarg :type
+         :initform nil
+         :accessor doc-type)
+(data :initarg :data
+         :initform (make-hash-table :test 'equal)
+         :accessor data))
   (:metaclass storable-class))
 
 (defgeneric get-docs (xdb collection-name)

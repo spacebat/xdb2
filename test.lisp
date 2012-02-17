@@ -1,4 +1,4 @@
-(in-package #:xdb)
+(in-package #:xdb2)
 
 ;;;;Test
 
@@ -42,8 +42,8 @@
     ))
 
 #|
-
-(defparameter db )
+(ensure-directories-exist (directory file))
+(defparameter db (make-instance 'xdb :location "/tmp/db-test/"))
 (defparameter col (add-collection db "test" :load-from-file nil))
 (time (test-store-doc col 1000))
 (time (sum col "eid"))

@@ -1,6 +1,6 @@
 ;;;; package.lisp
 
-(defpackage #:xdb
+(defpackage #:xdb2
   (:use :closer-common-lisp)
   (:export
    :xdb

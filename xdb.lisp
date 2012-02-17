@@ -1,4 +1,4 @@
-(in-package #:xdb)
+(in-package #:xdb2)
 
 (defclass xdb ()
   ((location :initarg :location
