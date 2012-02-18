@@ -74,8 +74,9 @@
   (:documentation "Serialize the doc to file."))
 
 (defmethod serialize-doc ((collection collection) doc &key)
-  (save-doc collection doc
-            (make-pathname :type "log" :defaults (path collection)))
+  (let ((path (make-pathname :type "log" :defaults (path collection))))
+    (ensure-directories-exist path)
+    (save-doc collection doc path))
   collection)
 
 (defgeneric serialize-docs (collection &key stream check-duplicate-function)
