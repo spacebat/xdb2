@@ -16,7 +16,7 @@
 
 (defun scale-file (stream size)
   (sb-posix:ftruncate (sb-sys:fd-stream-fd stream)
-                      (:dbg size)))
+                      size))
 
 (defun mmap (file-stream
              &key direction size)
