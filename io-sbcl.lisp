@@ -122,9 +122,13 @@
 
 (declaim (inline copy-mem))
 (defun copy-mem (from to length)
-  (loop for i below length by sb-vm:n-word-bytes
-        do (setf (sb-sys:sap-ref-word to i)
-                 (sb-sys:sap-ref-word from i))))
+  (let ((words-end (- length (rem length sb-vm:n-word-bytes))))
+    (loop for i by sb-vm:n-word-bytes below words-end
+          do (setf (sb-sys:sap-ref-word to i)
+                   (sb-sys:sap-ref-word from i)))
+    (loop for i from words-end below length
+          do (setf (sb-sys:sap-ref-8 to i)
+                   (sb-sys:sap-ref-8 from i)))))
 
 (declaim (inline read-ascii-string-optimized))
 (defun read-ascii-string-optimized (length string stream)
