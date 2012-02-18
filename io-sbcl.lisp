@@ -5,6 +5,8 @@
 
 (in-package #:xdb2)
 
+(defvar *fsync-data* t)
+
 (deftype word ()
   'sb-vm:word)
 
@@ -170,6 +172,7 @@
                        (advance-stream ,length-sym ,stream))
                      ,@body)
            (progn (munmap ,stream)
-                  (when (eql ,direction :output)
+                  (when (and (eql ,direction :output)
+                             *fsync-data*)
                     (sb-posix:fdatasync
                      (sb-sys:fd-stream-fd ,fd-stream)))))))))

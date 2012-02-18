@@ -114,6 +114,6 @@
 
 (defclass identifiable (standard-object)
   ((id :accessor id
-       :initform nil
+       :initform 0
        :storep nil))
   (:metaclass storable-class))

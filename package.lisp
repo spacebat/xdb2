@@ -27,4 +27,5 @@
    :find-doc
    :find-docs
    :sort-collection
-   :docs))
+   :docs
+   :*fsync-data*))
