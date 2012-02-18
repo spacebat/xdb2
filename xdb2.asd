@@ -13,6 +13,7 @@
                (:file "common")
                
                (:file "xdb")
+               (:file "collection-aware")
                (:file "db-functions")
                
                (:file "document")))

@@ -57,10 +57,19 @@ database collection can be build that spans multiple disks etc."))
 
 (defgeneric initialize-doc-container (collection)
   (:documentation
-   "Create the docs container and set the collection's docs to the container."))
+   "Create the docs container and set the collection's docs to the container.
+If you specialize this then you have to specialize add-doc, store-doc,
+sort-collection, sort-collection-temporary and union-collection. "))
 
 (defmethod initialize-doc-container ((collection collection))
   (setf (docs collection) (make-array 0 :adjustable t :fill-pointer 0)))
+
+
+(defgeneric map-docs (collection function)
+  (:documentation "Applies the function accross all the documents in the collection"))
+
+(defmethod map-docs ((collection collection) function)
+  (map nil function (docs collection)))
 
 
 (defgeneric duplicate-doc-p (doc test-doc))
@@ -88,12 +97,6 @@ database collection can be build that spans multiple disks etc."))
               ))
         (vector-push-extend doc (docs collection)))))
 
-(defgeneric map-docs (collection function)
-  (:documentation "Applies the function accross all the documents in the collection"))
-
-(defmethod map-docs ((collection collection) function)
-  (map nil function (docs collection)))
-
 
 (defgeneric store-doc (collection doc &key duplicate-doc-p-func)
   (:documentation "Serialize the doc to file and add it to the collection."))
@@ -116,7 +119,7 @@ database collection can be build that spans multiple disks etc."))
   (let ((path (make-pathname :type "log" :defaults (path collection))))
     (ensure-directories-exist path)
     (save-doc collection doc path))
-  collection)
+  doc)
 
 (defgeneric serialize-docs (collection &key duplicate-doc-p-func)
   (:documentation "Store all the docs in the collection on file and add it to the collection."))
@@ -218,8 +221,9 @@ database collection can be build that spans multiple disks etc."))
   (:documentation "Returns the docs that belong to a collection."))
 
 (defmethod get-docs ((db xdb) collection-name)
-  (when (gethash collection-name (collections db))
-    (docs (gethash collection-name (collections db)))))
+  (let ((collection (gethash collection-name (collections db))))
+    (if collection
+      (docs collection))))
 
 (defgeneric get-doc (collection value &key test element)
   (:documentation "Returns the docs that belong to a collection."))
@@ -245,10 +249,11 @@ database collection can be build that spans multiple disks etc."))
                   (return-from find-doc doc)))))
 
 
+;;TODO: must add a type of return for find docs so the user can specify
 (defgeneric find-docs (collection &key test &allow-other-keys)
   (:documentation "Returns a list of all the docs that matches the test."))
 
-(defmethod find-doc ((collection collection) &key test element value)
+(defmethod find-docs ((collection collection) &key test element value)
   (let ((docs nil))
     (map-docs collection
               (lambda (doc)
@@ -297,6 +302,32 @@ database collection can be build that spans multiple disks etc."))
                         #'sort-key)))
    sorted-array))
 
+(defclass union-docs ()
+  ((docs :initarg :docs
+         :accessor :docs)))
+
+(defgeneric union-collection (collection &rest args))
+
+(defmethod union-collection ((collection collection) &rest args)
+  (make-instance 'union-docs :docs (concatenate 'vector collection args)))
+
+
+(defmethod find-docs ((collection union-docs) &key test element value)
+  (map 'list 
+         (lambda (doc)
+           (when (if test
+                     (apply test doc element value)
+                     (equal (get-val doc element) value))))
+         collection))
+
+
+(defclass join-docs ()
+  ((docs :initarg :docs
+          :accessor :docs)))
+
+(defclass join-result ()
+  ((docs :initarg :docs
+          :accessor :docs)))
 
 
 

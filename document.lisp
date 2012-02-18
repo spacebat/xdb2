@@ -34,5 +34,41 @@
   (if doc
       (setf (slot-value doc element) new-value)))
 
+(defclass document-join (join)
+  ())
+
+(defclass document-join-result (join-result)
+  ())
 
 
+(defmethod get-val ((composite-doc document-join-result) element &key data-type)
+  (declare (ignore data-type))
+  (map 'list 
+       (lambda (doc)
+         (cons (doc-type doc) (get-val doc element)))
+       (docs composite-doc)))
+
+(defmethod get-doc ((collection document-join) value &key (test #'equal) (element 'key))
+  (when collection
+    (map-docs collection
+              (lambda (doc)
+                (when (apply test (get-val doc element) value)
+                  (return-from get-doc doc))))))
+
+(defmethod find-doc ((collection document-join) &key test element value)
+  (map 'list 
+       (lambda (doc)
+         (when (if test
+                   (apply test doc element value)
+                   (equal (get-val doc element) value))
+           (return-from find-doc doc)))
+       collection))
+
+(defmethod find-docs ((collection document-join) &key test element value)
+  (map 'list
+         (lambda (doc)
+           (when (if test
+                     (apply test doc element value)
+                     (equal (get-val doc element) value))
+             ))
+         collection))
