@@ -10,5 +10,9 @@
                (:file "io-generic")
                (:file "mop")
                (:file "disk")
+               (:file "common")
+               
                (:file "xdb")
-               (:file "db-functions")))
+               (:file "db-functions")
+               
+               (:file "document")))
