@@ -9,10 +9,10 @@
     (setf (get-val doc 'collection) collection)
 
     (if duplicate-doc-p-func
-        (let ((dup (find-duplicate-doc collection doc :func duplicate-doc-p-func)))
+        (let ((dup (find-duplicate-doc collection doc :function duplicate-doc-p-func)))
           (if (not dup)
               (vector-push-extend doc (docs collection))
-              (setf dup doc) ;;doing this because 
+              (setf dup doc) ;;doing this because ???
               ))
         (vector-push-extend doc (docs collection)))))
 
@@ -23,7 +23,7 @@
     (setf (get-val doc 'collection) collection)
     (let ((dup (and duplicate-doc-p-func
                     (find-duplicate-doc collection doc
-                                        :func duplicate-doc-p-func))))
+                                        :function duplicate-doc-p-func))))
       (if dup
           (setf dup doc)
           (vector-push-extend doc (docs collection)))

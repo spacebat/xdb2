@@ -48,32 +48,30 @@
          (cons (doc-type doc) (get-val doc element)))
        (docs composite-doc)))
 
-(defmethod get-doc ((collection document-join) &rest more-collections
-                     &key (test #'equal) (element 'key) value)
-  (when collection
-    (map-docs 
-              (lambda (doc)
-                (when (apply test (get-val doc element) value)
-                  (return-from get-doc doc)))
-              (append (list collection) more-collections))))
 
-(defmethod find-doc ((collection document-join) &rest more-collections
-                     &key test )
+(defmethod get-doc ((collection document-join) value &key (element 'key) (test #'equal))
+  (map-docs
+         nil
+         (lambda (doc)
+           (when (apply test (get-val doc element) value)
+             (return-from get-doc doc)))
+         collection))
+
+
+(defmethod find-doc ((collection document-join) &key test)
+  (if test
+      (map-docs
+       nil
+       (lambda (doc)
+         (when (apply test doc)
+           (return-from find-doc doc)))
+       collection)))
+
+(defmethod find-docs (return-type test (collection document-join) &rest more-collections )
   (apply #'map-docs 
+         return-type
          (lambda (doc)
            (when (apply test doc)
-             (return-from find-doc doc)))
+             doc))
          collection
-         (cdr more-collections)))
-
-(defmethod find-docs ((collection document-join) &rest more-collections 
-                      &key test element value (return-type 'vector))
-  (apply #'map-docs 
-         (lambda (doc)
-           (when (if test
-                     (apply test doc element value)
-                     (equal (get-val doc element) value))
-             ))
-         collection
-         (cdr more-collections)
-         :return-type  return-type))
+         more-collections))
