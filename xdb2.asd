@@ -11,9 +11,7 @@
                (:file "mop")
                (:file "disk")
                (:file "common")
-               
                (:file "xdb")
-               (:file "collection-aware")
                (:file "db-functions")
-               
-               (:file "document")))
+               (:file "document")
+               (:file "collection-aware")))
