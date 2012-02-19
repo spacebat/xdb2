@@ -65,15 +65,19 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (setf (docs collection) (make-array 0 :adjustable t :fill-pointer 0)))
 
 
-(defgeneric map-docs (function collection &rest more-collections &key &allow-other-keys )
-  (:documentation "Applies the function accross all the documents in the collection"))
+(defgeneric map-docs (result-type function collection &rest more-collections)
+  (:documentation
+   "Applies the function accross all the documents in the collection"))
 
-(defmethod map-docs (function (collection collection) &rest more-collections 
-                     &key result-type)
-  (let ((more (if more-collections
-                  (map 'vector (lambda (col) (docs col))
-                       (cdr more-collections)))))
-    (map result-type function (docs collection) more)))
+(defmethod map-docs (result-type function (collection collection)
+                     &rest more-collections)
+  (let ((result
+          (map result-type function (docs collection))))
+    (loop for collection in more-collections
+          for results = (map result-type function (docs collection))
+          if result-type
+          do (setf result (concatenate result-type result results)))
+    result))
 
 
 (defgeneric duplicate-doc-p (doc test-doc))
@@ -83,7 +87,8 @@ sort-collection, sort-collection-temporary and union-collection. "))
 
 (defmethod find-duplicate-doc ((collection collection) doc &key func)
   (let ((test (or func #'duplicate-doc-p)))
-    (map-docs 
+    (map-docs
+     nil
      (lambda (docx)
        (when (funcall test doc docx)
          (return-from find-duplicate-doc docx)))
@@ -295,12 +300,12 @@ sort-collection, sort-collection-temporary and union-collection. "))
 
 
 (defmethod find-docs ((collection union-docs) &key test element value (result-type 'vector))
-  (map-docs collection
-              (lambda (doc)
-                (when (if test
-                          (apply test doc element value)
-                          (equal (get-val doc element) value))))
-              :result-type result-type))
+  (map-docs result-type
+            collection
+            (lambda (doc)
+              (when (if test
+                        (apply test doc element value)
+                        (equal (get-val doc element) value))))))
 
 
 (defclass join-docs ()

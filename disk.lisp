@@ -107,7 +107,8 @@
     (if document
         (incf result
               (standard-object-size document))
-        (map-docs (lambda (document)
+        (map-docs nil
+                  (lambda (document)
                     (incf result
                           (standard-object-size document)))
                   *collection*))
@@ -127,7 +128,8 @@
            (setf classes (list (class-of document)))
            (setf (id document) last-id))
           (t
-           (map-docs (lambda (document)
+           (map-docs nil
+                     (lambda (document)
                        (pushnew (class-of document) classes :test #'eq)
                        (setf (id document) last-id)
                        (incf last-id))
@@ -144,7 +146,8 @@
 
 (defun dump-data (size stream)
   (write-classes-info size stream)
-  (map-docs 
+  (map-docs
+   nil
    (lambda (document)
      (write-standard-object document stream))
    *collection*))

@@ -6,10 +6,10 @@ the return values."))
 
 (defmethod sum ((collection collection) &key function element)
   (let* ((sum 0)
-        (func (if function
-                  function
-                  (lambda (doc)
-                    (setf sum (+ sum (get-val doc element)))))))
-    (map-docs collection
-              func)
+         (function (or function
+                       (lambda (doc)
+                         (incf sum (get-val doc element))))))
+    (map-docs nil
+              collection
+              function)
     sum))
