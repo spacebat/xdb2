@@ -123,7 +123,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod serialize-doc ((collection collection) doc &key)
   (let ((path (make-pathname :type "log" :defaults (path collection))))
     (ensure-directories-exist path)
-    
     (save-doc collection doc path))
   doc)
 
@@ -179,8 +178,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
                                      :type "snapshot"))
       (load-from-file collection
                       (make-pathname :defaults (path collection)
-                                     :type "log"))
-      )
+                                     :type "log")))
     collection))
 
 (defgeneric snapshot (collection)

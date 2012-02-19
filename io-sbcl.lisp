@@ -5,7 +5,7 @@
 
 (in-package #:xdb2)
 
-(defvar *fsync-data* t)
+(defvar *fsync-data* nil)
 
 (deftype word ()
   'sb-vm:word)
@@ -173,7 +173,6 @@
                                                 :supersede)
                                  :if-does-not-exist :create
                                  :element-type '(unsigned-byte 8))
-
        (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
        (let* ((,size-sym ,size)
               (,length-sym (and ,append

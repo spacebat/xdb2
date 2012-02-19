@@ -119,15 +119,19 @@
         for class in classes
         do (setf (class-id class) i)))
 
-(defun prepare-data ()
+(defun prepare-data (&optional document)
   (let ((last-id 0)
         classes)
     (declare (fixnum last-id))
-    (map-docs (lambda (document)
-                (pushnew (class-of document) classes :test #'eq)
-                (setf (id document) last-id)
-                (incf last-id))
-              *collection*)
+    (cond (document
+           (setf classes (list (class-of document)))
+           (setf (id document) last-id))
+          (t
+           (map-docs (lambda (document)
+                       (pushnew (class-of document) classes :test #'eq)
+                       (setf (id document) last-id)
+                       (incf last-id))
+                     *collection*)))
     (setf *classes* classes)
     (assign-ids-to-classes classes)
     last-id))
@@ -868,7 +872,7 @@
 (defun save-doc (collection document &optional file)
   (let* ((*collection* collection)
          (*classes* nil))
-    (prepare-data)
+    (prepare-data document)
     (with-packages
       (with-io-file (stream file
                      :direction :output
