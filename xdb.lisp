@@ -156,18 +156,19 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defgeneric add-collection (xdb name &key load-from-file-p)
   (:documentation "Adds a collection to the db."))
 
-(defun make-new-collection (name db)
+(defun make-new-collection (name db &key collection-class)
   (let ((collection
-          (make-instance 'collection
+         (make-instance collection-class
                          :name name
                          :path (merge-pathnames name (location db)))))
     (initialize-doc-container collection)
     collection))
 
-(defmethod add-collection ((db xdb) name &key load-from-file-p)
+(defmethod add-collection ((db xdb) name &key collection-class load-from-file-p)
   (let ((collection (or (gethash name (collections db))
                         (setf (gethash name (collections db))
-                              (make-new-collection name db)))))
+                              (make-new-collection name db 
+                                                   :collection-class collection-class)))))
     (ensure-directories-exist (path collection))
     (when load-from-file-p
       (load-from-file collection

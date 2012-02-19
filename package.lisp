@@ -5,6 +5,7 @@
   (:export
    :xdb
    :collection
+   :collection-aware
    :map-docs
    :duplicate-doc-p
    :find-duplicate-doc
@@ -28,4 +29,8 @@
    :find-docs
    :sort-collection
    :docs
-   :*fsync-data*))
+   :*fsync-data*
+   :storable-class
+   :dbs
+   :get-db
+   :add-db))
