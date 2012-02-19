@@ -252,7 +252,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (map-docs
          nil
          (lambda (doc)
-           (when (apply test (get-val doc element) value)
+           (when (funcall test (get-val doc element) value)
              (return-from get-doc doc)))
          collection))
 
@@ -263,7 +263,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (apply #'map-docs
          nil
          (lambda (doc)
-           (when (apply test (get-val doc element) value)
+           (when (apply test (list (get-val doc element) value))
              (return-from get-doc-complex doc)))
          collection
          more-collections))
@@ -280,7 +280,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
       (map-docs
        nil
        (lambda (doc)
-         (when (apply test doc)
+         (when (funcall test doc)
            (return-from find-doc doc)))
        collection)))
 
@@ -290,7 +290,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod find-doc-complex (test collection &rest more-collections)
   (apply #'map-docs 
          (lambda (doc)
-           (when (apply test doc)
+           (when (funcall test doc)
              (return-from find-doc-complex doc)))
          collection
          (cdr more-collections)))
@@ -302,7 +302,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (apply #'map-docs 
          return-type
          (lambda (doc)
-           (when (apply test doc)
+           (when (funcall test doc)
              doc))
          collection
          more-collections))
@@ -316,7 +316,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod union-collection (return-type (collection collection) &rest more-collections)
   (make-instance 
    'union-docs 
-   :docs (apply #'map-docs return-type collection more-collections)))
+   :docs (apply #'map-docs (list return-type collection more-collections))))
 
 
 (defmethod find-docs (return-type test (collection union-docs)  &rest more-collections)
