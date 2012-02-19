@@ -123,6 +123,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod serialize-doc ((collection collection) doc &key)
   (let ((path (make-pathname :type "log" :defaults (path collection))))
     (ensure-directories-exist path)
+    
     (save-doc collection doc path))
   doc)
 
@@ -164,16 +165,22 @@ sort-collection, sort-collection-temporary and union-collection. "))
     (initialize-doc-container collection)
     collection))
 
-(defmethod add-collection ((db xdb) name &key collection-class load-from-file-p)
+(defmethod add-collection ((db xdb) name 
+                           &key (collection-class 'collection) load-from-file-p)
   (let ((collection (or (gethash name (collections db))
                         (setf (gethash name (collections db))
                               (make-new-collection name db 
                                                    :collection-class collection-class)))))
     (ensure-directories-exist (path collection))
     (when load-from-file-p
+      
       (load-from-file collection
                       (make-pathname :defaults (path collection)
-                                     :type "snapshot")))
+                                     :type "snapshot"))
+      (load-from-file collection
+                      (make-pathname :defaults (path collection)
+                                     :type "log"))
+      )
     collection))
 
 (defgeneric snapshot (collection)

@@ -107,10 +107,10 @@
     (if document
         (incf result
               (standard-object-size document))
-        (map-docs *collection*
-                  (lambda (document)
+        (map-docs (lambda (document)
                     (incf result
-                          (standard-object-size document)))))
+                          (standard-object-size document)))
+                  *collection*))
     (setf (fill-pointer *packages*) 0)
     result))
 
@@ -123,11 +123,11 @@
   (let ((last-id 0)
         classes)
     (declare (fixnum last-id))
-    (map-docs *collection*
-              (lambda (document)
+    (map-docs (lambda (document)
                 (pushnew (class-of document) classes :test #'eq)
                 (setf (id document) last-id)
-                (incf last-id)))
+                (incf last-id))
+              *collection*)
     (setf *classes* classes)
     (assign-ids-to-classes classes)
     last-id))
@@ -140,9 +140,10 @@
 
 (defun dump-data (size stream)
   (write-classes-info size stream)
-  (map-docs *collection*
-            (lambda (document)
-              (write-standard-object document stream))))
+  (map-docs 
+   (lambda (document)
+     (write-standard-object document stream))
+   *collection*))
 
 (declaim (inline read-next-object))
 (defun read-next-object (stream)
