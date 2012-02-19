@@ -65,11 +65,15 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (setf (docs collection) (make-array 0 :adjustable t :fill-pointer 0)))
 
 
-(defgeneric map-docs (collection function)
+(defgeneric map-docs (function collection &rest more-collections &key &allow-other-keys )
   (:documentation "Applies the function accross all the documents in the collection"))
 
-(defmethod map-docs ((collection collection) function)
-  (map nil function (docs collection)))
+(defmethod map-docs (function (collection collection) &rest more-collections 
+                     &key result-type)
+  (let ((more (if more-collections
+                  (map 'vector (lambda (col) (docs col))
+                       (cdr more-collections)))))
+    (map result-type function (docs collection) more)))
 
 
 (defgeneric duplicate-doc-p (doc test-doc))
@@ -79,10 +83,11 @@ sort-collection, sort-collection-temporary and union-collection. "))
 
 (defmethod find-duplicate-doc ((collection collection) doc &key func)
   (let ((test (or func #'duplicate-doc-p)))
-    (map-docs collection
-              (lambda (docx)
-                (when (funcall test doc docx)
-                  (return-from find-duplicate-doc docx))))))
+    (map-docs 
+     (lambda (docx)
+       (when (funcall test doc docx)
+         (return-from find-duplicate-doc docx)))
+     collection)))
 
 (defgeneric add-doc (collection doc &key duplicate-doc-p-func)
   (:documentation "Add a document to the docs container."))
@@ -125,10 +130,11 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (:documentation "Store all the docs in the collection on file and add it to the collection."))
 
 (defmethod serialize-docs (collection &key duplicate-doc-p-func)
-  (map-docs collection
-            (lambda (doc)
-              (store-doc collection doc
-                         :duplicate-doc-p-func duplicate-doc-p-func))))
+  (map-docs 
+   (lambda (doc)
+     (store-doc collection doc
+                :duplicate-doc-p-func duplicate-doc-p-func))
+   collection))
 
 (defgeneric load-from-file (collection file)
   (:documentation "Load collection from a file."))
@@ -217,51 +223,88 @@ sort-collection, sort-collection-temporary and union-collection. "))
                (add-collection db value :load-from-file-p load-from-file-p))
              unique-collections)))
 
-(defgeneric get-docs (xdb collection-name)
+(defgeneric get-docs (xdb collection-name &rest more-collections 
+                          &key return-type &allow-other-keys)
   (:documentation "Returns the docs that belong to a collection."))
 
-(defmethod get-docs ((db xdb) collection-name)
-  (let ((collection (gethash collection-name (collections db))))
-    (if collection
-      (docs collection))))
+(defmethod get-docs ((db xdb) collection-name &rest more-collections 
+                     &key (return-type 'vector))
 
-(defgeneric get-doc (collection value &key test element)
+  (apply #'map-docs 
+         (lambda (col-name)
+           (docs (gethash col-name (collections db))))
+         collection-name
+         (cdr more-collections)
+         :return-type  return-type))
+
+(defgeneric get-doc (collection &rest more-collections &key test &allow-other-keys)
   (:documentation "Returns the docs that belong to a collection."))
 
-(defmethod get-doc (collection value &key (test #'equal) (element 'key))
-  (when collection
-    (map-docs collection
-              (lambda (doc)
-                (when (apply test (get-val doc element) value)
-                  (return-from get-doc doc))))))
+(defmethod get-doc (collection &rest more-collections 
+                    &key (element 'key) value (test #'equal) )
+  (apply #'map-docs 
+         (lambda (doc)
+           (when (apply test (get-val doc element) value)
+             (return-from get-doc doc)))
+         collection
+         (cdr more-collections)))
 
-
-(defgeneric find-doc (collection &key test &allow-other-keys)
+(defgeneric find-doc (collection &rest more-collections &key test &allow-other-keys)
   (:documentation "Returns the first doc that matches the test."))
 
+(defmethod find-doc ((collection collection) &rest more-collections &key test )
+  (apply #'map-docs 
+         (lambda (doc)
+       (when (apply test doc)
+         (return-from find-doc doc)))
+         collection
+         (cdr more-collections)))
 
-(defmethod find-doc ((collection collection) &key test element value)
+(defgeneric find-docs (collection &rest more-collections &key test &allow-other-keys)
+  (:documentation "Returns a list of all the docs that matches the test."))
+
+(defmethod find-docs ((collection collection) &rest more-collections 
+                      &key test element value (return-type 'vector))
+
+  (apply #'map-docs 
+         (lambda (doc)
+           (when (if test
+                     (apply test doc element value)
+                     (equal (get-val doc element) value))
+             ))
+         collection
+         (cdr more-collections)
+         :return-type  return-type))
+
+(defclass union-docs ()
+  ((docs :initarg :docs
+         :accessor :docs)))
+
+(defgeneric union-collection (collection &rest more-collections 
+                                         &key return-type &allow-other-keys))
+
+(defmethod union-collection ((collection collection) &rest more-collections 
+                             &key (return-type 'vector))
+  (make-instance 'union-docs :docs (concatenate return-type collection more-collections)))
+
+
+(defmethod find-docs ((collection union-docs) &key test element value (result-type 'vector))
   (map-docs collection
               (lambda (doc)
                 (when (if test
                           (apply test doc element value)
-                          (equal (get-val doc element) value))
-                  (return-from find-doc doc)))))
+                          (equal (get-val doc element) value))))
+              :result-type result-type))
 
 
-;;TODO: must add a type of return for find docs so the user can specify
-(defgeneric find-docs (collection &key test &allow-other-keys)
-  (:documentation "Returns a list of all the docs that matches the test."))
+(defclass join-docs ()
+  ((docs :initarg :docs
+          :accessor :docs)))
 
-(defmethod find-docs ((collection collection) &key test element value)
-  (let ((docs nil))
-    (map-docs collection
-              (lambda (doc)
-                (when (if test
-                          (apply test doc element value)
-                          (equal (get-val doc element) value))
-                  (setf docs (append docs (list doc))))))
-    docs))
+(defclass join-result ()
+  ((docs :initarg :docs
+          :accessor :docs)))
+
 
 
 (defun sort-key (doc)
@@ -287,7 +330,8 @@ sort-collection, sort-collection-temporary and union-collection. "))
       t))
 
 (defgeneric sort-collection-temporary (collection &key sort-value-func sort-test-func)
-  (:documentation "This does not sort the actual collection but returns an array of sorted docs."))
+  (:documentation "This does not sort the actual collection but returns an array 
+of sorted docs."))
 
 (defmethod sort-collection-temporary ((collection collection) 
                             &key sort-value-func sort-test-func)
@@ -301,35 +345,5 @@ sort-collection, sort-collection-temporary and union-collection. "))
                         sort-value-func
                         #'sort-key)))
    sorted-array))
-
-(defclass union-docs ()
-  ((docs :initarg :docs
-         :accessor :docs)))
-
-(defgeneric union-collection (collection &rest args))
-
-(defmethod union-collection ((collection collection) &rest args)
-  (make-instance 'union-docs :docs (concatenate 'vector collection args)))
-
-
-(defmethod find-docs ((collection union-docs) &key test element value)
-  (map 'list 
-         (lambda (doc)
-           (when (if test
-                     (apply test doc element value)
-                     (equal (get-val doc element) value))))
-         collection))
-
-
-(defclass join-docs ()
-  ((docs :initarg :docs
-          :accessor :docs)))
-
-(defclass join-result ()
-  ((docs :initarg :docs
-          :accessor :docs)))
-
-
-
 ;;Add method for validation when updating a collection.
 
