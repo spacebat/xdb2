@@ -174,22 +174,24 @@
                                  :if-does-not-exist :create
                                  :element-type '(unsigned-byte 8))
        (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
-       (let* ((,size-sym ,size)
-              (,length-sym (and ,append
-                               (file-length ,fd-stream)))
-              (,stream (mmap ,fd-stream
-                             :direction ,direction
-                             :size (and (eql ,direction :output)
-                                        (+ (if ,append
-                                               ,length-sym
-                                               0)
-                                           ,size-sym)))))
-         (unwind-protect
-              (progn (when ,append
-                       (advance-stream ,length-sym ,stream))
-                     ,@body)
-           (progn (munmap ,stream)
-                  (when (and (eql ,direction :output)
-                             *fsync-data*)
-                    (sb-posix:fdatasync
-                     (sb-sys:fd-stream-fd ,fd-stream)))))))))
+       (unless (and (eql ,direction :input)
+                   (zerop (file-length ,fd-stream)))
+              (let* ((,size-sym ,size)
+                     (,length-sym (and ,append
+                                       (file-length ,fd-stream)))
+                     (,stream (mmap ,fd-stream
+                                    :direction ,direction
+                                    :size (and (eql ,direction :output)
+                                               (+ (if ,append
+                                                      ,length-sym
+                                                      0)
+                                                  ,size-sym)))))
+                (unwind-protect
+                     (progn (when ,append
+                              (advance-stream ,length-sym ,stream))
+                            ,@body)
+                  (progn (munmap ,stream)
+                         (when (and (eql ,direction :output)
+                                    *fsync-data*)
+                           (sb-posix:fdatasync
+                            (sb-sys:fd-stream-fd ,fd-stream))))))))))
