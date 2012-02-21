@@ -179,7 +179,8 @@ sort-collection, sort-collection-temporary and union-collection. "))
                                      :type "snap"))
       (load-from-file collection
                       (make-pathname :defaults (path collection)
-                                     :type "log")))
+                                     :type "log"))
+      )
     collection))
 
 (defgeneric snapshot (collection)

@@ -108,9 +108,12 @@
 (defparameter col (add-collection db "test" :load-from-file-p nil))
 (setf *fsync-data* nil)
 (time (test-store-docxx col 10000))
-(time (sum col "eid"))
-(time (find-doc col "eid" 50))
+(time (sum col  :element 'eid))
+(time (find-doc col :test (lambda (doc) (equal (get-val doc 'eid) 50))))
 (time (sort-collection col))
+(time (let ((x (sort-collection-temporary col)))
+        (declare (ignore x))
+        "done"))
 
 |#
 
