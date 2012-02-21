@@ -20,12 +20,7 @@
     :initform nil
     :accessor all-slot-locations-and-initforms)
    (initforms :initform #()
-	      :accessor class-initforms)
-   (objects :initform nil
-            :accessor objects-of-class)
-   (storage :initform nil
-            :initarg :storage
-            :accessor class-storage)))
+	      :accessor class-initforms)))
 
 (defun initialize-storable-class (next-method class &rest args
                                   &key direct-superclasses &allow-other-keys)
@@ -114,6 +109,6 @@
 
 (defclass identifiable (standard-object)
   ((id :accessor id
-       :initform 0
+       :initform nil
        :storep nil))
   (:metaclass storable-class))

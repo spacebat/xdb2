@@ -10,6 +10,6 @@ the return values."))
                        (lambda (doc)
                          (incf sum (get-val doc element))))))
     (map-docs nil
-              collection
-              function)
+              function
+              collection)
     sum))

@@ -2,8 +2,19 @@
 
 (in-package #:xdb2)
 
-(defvar *collection* nil)
-(defvar *classes* nil)
+(defclass collection ()
+  ((name :initarg :name
+         :accessor name)
+   (path :initarg :path
+         :accessor path)
+   (docs :initarg :docs
+         :accessor docs)
+   (packages :initform (make-s-packages)
+             :accessor packages)
+   (classes :initform (make-class-cache)
+            :accessor classes)
+   (last-id :initform 0
+            :accessor last-id)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *codes*
@@ -20,7 +31,6 @@
       double-float
       single-float
       complex
-      list-of-objects
       symbol
       intern-package-and-symbol
       intern-symbol
@@ -39,11 +49,14 @@
         (push (cons type 1) *statistics*))
     type))
 
-(defvar *indexes* #())
-(declaim (simple-vector *indexes*))
+(defvar *collection* nil)
 
-(defvar *packages* #())
-(declaim (vector *packages*))
+(defvar *classes*)
+(defvar *packages*)
+(declaim (vector *classes* *packages*))
+
+(defvar *indexes*)
+(declaim (hash-table *indexes*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun type-code (type)
@@ -92,60 +105,25 @@
 (deftype storage-fixnum ()
   `(signed-byte ,(* +fixnum-length+ 8)))
 
+(defun make-class-cache ()
+  (make-array 10 :adjustable t :fill-pointer 0))
+
+(defmacro with-collection (collection &body body)
+  (let ((collection-sym (gensym)))
+    `(let* ((,collection-sym ,collection)
+            (*collection* ,collection-sym)
+            (*packages* (packages ,collection-sym))
+            (*classes* (classes ,collection-sym)))
+       ,@body)))
+
 ;;;
 
 (defun slot-effective-definition (class slot-name)
   (find slot-name (class-slots class) :key #'slot-definition-name))
 
 (defgeneric write-object (object stream))
-(defgeneric object-size (object))
 
-(defun measure-size (&optional document)
-  (let ((result (+ +id-length+ +sequence-length+)))
-    (loop for class in *classes*
-          do (incf result (object-size class)))
-    (if document
-        (incf result
-              (standard-object-size document))
-        (map-docs nil
-                  (lambda (document)
-                    (incf result
-                          (standard-object-size document)))
-                  *collection*))
-    (setf (fill-pointer *packages*) 0)
-    result))
-
-(defun assign-ids-to-classes (classes)
-  (loop for i from 0
-        for class in classes
-        do (setf (class-id class) i)))
-
-(defun prepare-data (&optional document)
-  (let ((last-id 0)
-        classes)
-    (declare (fixnum last-id))
-    (cond (document
-           (setf classes (list (class-of document)))
-           (setf (id document) last-id))
-          (t
-           (map-docs nil
-                     (lambda (document)
-                       (pushnew (class-of document) classes :test #'eq)
-                       (setf (id document) last-id)
-                       (incf last-id))
-                     *collection*)))
-    (setf *classes* classes)
-    (assign-ids-to-classes classes)
-    last-id))
-
-(defun write-classes-info (size stream)
-  (write-n-bytes size +id-length+ stream)
-  (write-n-bytes (length *classes*) +sequence-length+ stream)
-  (loop for class in *classes*
-        do (write-object class stream)))
-
-(defun dump-data (size stream)
-  (write-classes-info size stream)
+(defun dump-data (stream)
   (map-docs
    nil
    (lambda (document)
@@ -158,9 +136,6 @@
 
 ;;; NIL
 
-(defmethod object-size ((object null))
-  1)
-
 (defmethod write-object ((object null) stream)
   (write-n-bytes #.(type-code 'null) 1 stream))
 
@@ -169,10 +144,6 @@
   nil)
 
 ;;; Symbol
-
-(defmacro with-packages (&body body)
-  `(let ((*packages* (make-s-packages)))
-     ,@body))
 
 (defun make-s-packages ()
   (make-array 10 :adjustable t :fill-pointer 0))
@@ -201,21 +172,6 @@
 
 (defun s-intern-existing (symbol symbols)
   (vector-push-extend symbol symbols))
-
-(defmethod object-size ((symbol symbol))
-  (+ 1 ;; type
-     (multiple-value-bind (package-id symbol-id
-                           new-package new-symbol) (s-intern symbol)
-       (declare (ignore package-id symbol-id))
-       (cond ((and new-package new-symbol)
-              (+ (object-size (package-name (symbol-package symbol)))
-                 (object-size (symbol-name symbol))))
-             (new-symbol
-              (+ +sequence-length+
-                 (object-size (symbol-name symbol))))
-             (t
-              (+ +sequence-length+
-                 +sequence-length+))))))
 
 (defmethod write-object ((symbol symbol) stream)
   (multiple-value-bind (package-id symbol-id
@@ -264,16 +220,6 @@
     symbol))
 
 ;;; Integer
-
-(defmethod object-size ((object integer))
-  (+ 1 ;; tag
-     (typecase object
-       (storage-fixnum +fixnum-length+)
-       (t (+ 1 ;; sign
-             1 ;; size
-             (* (ceiling (integer-length (abs object))
-                         (* +fixnum-length+ 8))
-                +fixnum-length+))))))
 
 (declaim (inline sign))
 (defun sign (n)
@@ -327,11 +273,6 @@
 
 ;;; Ratio
 
-(defmethod object-size ((object ratio))
-  (+ 1
-     (object-size (numerator object))
-     (object-size (denominator object))))
-
 (defmethod write-object ((object ratio) stream)
   (write-n-bytes #.(type-code 'ratio) 1 stream)
   (write-object (numerator object) stream)
@@ -342,12 +283,6 @@
      (read-next-object stream)))
 
 ;;; Float
-
-(defmethod object-size ((float float))
-  (+ 1
-     (etypecase float
-       (single-float 4)
-       (double-float 8))))
 
 (defun write-8-bytes (n stream)
   (write-n-bytes (ldb (byte 32 0) n) 4 stream)
@@ -374,11 +309,6 @@
 
 ;;; Complex
 
-(defmethod object-size ((complex complex))
-  (+ 1
-     (object-size (realpart complex))
-     (object-size (imagpart complex))))
-
 (defmethod write-object ((complex complex) stream)
   (write-n-bytes #.(type-code 'complex) 1 stream)
   (write-object (realpart complex) stream)
@@ -390,9 +320,6 @@
 
 ;;; Characters
 
-(defmethod object-size ((character character))
-  (+ 1 +char-length+))
-
 (defmethod write-object ((character character) stream)
   (write-n-bytes #.(type-code 'character) 1 stream)
   (write-n-bytes (char-code character) +char-length+ stream))
@@ -401,14 +328,6 @@
   (code-char (read-n-bytes +char-length+ stream)))
 
 ;;; Strings
-
-(defmethod object-size ((string string))
-  (typecase string
-    ((not simple-string) (call-next-method))
-    (ascii-string (+ 1 +sequence-length+ (length string)))
-    (t (+ 1 +sequence-length+
-          (* (length string)
-             +char-length+)))))
 
 (defun write-ascii-string (string stream)
   (declare (simple-string string))
@@ -428,7 +347,7 @@
     (simple-base-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
-     (write-ascii-string-optimized (length string) string stream))
+     (write-ascii-string string stream))
     (ascii-string
      (write-n-bytes #.(type-code 'ascii-string) 1 stream)
      (write-n-bytes (length string) +sequence-length+ stream)
@@ -441,11 +360,11 @@
 (declaim (inline read-ascii-string))
 (defun read-ascii-string (length stream)
   (let ((string (make-string length :element-type 'base-char)))
-    #-sbcl
+    ;#-sbcl
     (loop for i below length
           do (setf (schar string i)
                    (code-char (read-n-bytes 1 stream))))
-    #+(and sbcl (or x86 x86-64))
+    #+(and nil sbcl (or x86 x86-64))
     (read-ascii-string-optimized length string stream)
     string))
 
@@ -461,14 +380,6 @@
     string))
 
 ;;; Pathname
-
-(defmethod object-size ((pathname pathname))
-  (+ 1
-     (object-size (pathname-name pathname))
-     (object-size (pathname-directory pathname))
-     (object-size (pathname-device pathname))
-     (object-size (pathname-type pathname))
-     (object-size (pathname-version pathname))))
 
 (defmethod write-object ((pathname pathname) stream)
   (write-n-bytes #.(type-code 'pathname) 1 stream)
@@ -488,30 +399,9 @@
 
 ;;; Cons
 
-(defun cons-size (cons)
-  (loop for cdr = cons then (cdr cdr)
-        sum (object-size (alexandria:ensure-car cdr))
-        while (consp cdr)))
-
-(defmethod object-size ((list cons))
-  (cond ((and (alexandria:proper-list-p list)
-              (list-of-objects-p list))
-         (+ 1
-            (* (length list) +id-length+)
-            +sequence-length+))
-        ((alexandria:circular-list-p list)
-         (error "Can't store circular lists"))
-        (t
-         (+ 1 (cons-size list)
-            1))))
-
 (defmethod write-object ((list cons) stream)
-  (cond #-sbcl
-        ((alexandria:circular-list-p list)
+  (cond ((alexandria:circular-list-p list)
          (error "Can't store circular lists"))
-        ((and (alexandria:proper-list-p list)
-              (list-of-objects-p list))
-         (write-list-of-objects list stream))
         (t
          (write-n-bytes #.(type-code 'cons) 1 stream)
          (loop for cdr = list then (cdr cdr)
@@ -535,33 +425,7 @@
           do (setf (cdr previous-cons) new-cons))
     first-cons))
 
-;;; list-of-objects
-
-(defun list-of-objects-p (list)
-  (loop for i in list
-        always (typep i 'standard-object)))
-
-(defun write-list-of-objects (list stream)
-  (write-n-bytes #.(type-code 'list-of-objects) 1 stream)
-  (write-n-bytes (length list) +sequence-length+ stream)
-  (dolist (object list)
-    (write-n-bytes (id object) +id-length+ stream)))
-
-(defreader list-of-objects (stream)
-  (loop repeat (read-n-bytes +sequence-length+ stream)
-        for id = (read-n-bytes +id-length+ stream)
-        collect (get-instance id)))
-
 ;;; Simple-vector
-
-(defmethod object-size ((vector vector))
-  (typecase vector
-    (simple-vector
-     (+ 1 ;; type
-        +sequence-length+
-        (reduce #'+ vector :key #'object-size)))
-    (t
-     (call-next-method))))
 
 (defmethod write-object ((vector vector) stream)
   (typecase vector
@@ -584,20 +448,6 @@
     vector))
 
 ;;; Array
-
-(defun array-size (array)
-  (loop for i below (array-total-size array)
-        sum (object-size (row-major-aref array i))))
-
-(defmethod object-size ((array array))
-  (+ 1 ;; type
-     (object-size (array-dimensions array))
-     (if (array-has-fill-pointer-p array)
-         (+ 1 +sequence-length+)
-         2) ;; 0 + 0
-     (object-size (array-element-type array))
-     1 ;; adjustable-p
-     (array-size array)))
 
 (defun boolify (x)
   (if x
@@ -644,20 +494,6 @@
             hash-table test))
     test-id))
 
-(defun measure-hash-table-size (hash-table)
-  (loop for key being the hash-keys of hash-table
-        using (hash-value value)
-        sum (+ (object-size key)
-               (object-size value))))
-
-(defmethod object-size ((hash-table hash-table))
-  (check-hash-table-test hash-table)
-  (+ 1
-     1 ;; test-id
-     +hash-table-length+
-     (measure-hash-table-size hash-table)
-     1)) ;; +end+
-
 (defmethod write-object ((hash-table hash-table) stream)
   (write-n-bytes #.(type-code 'hash-table) 1 stream)
   (write-n-bytes (check-hash-table-test hash-table) 1 stream)
@@ -681,19 +517,15 @@
 
 ;;; storable-class
 
-(defmethod object-size ((class storable-class))
-  (unless (class-finalized-p class)
-    (finalize-inheritance class))
-  (+ 1 ;; type
-     (object-size (class-name class))
-     +sequence-length+ ;; list length
-     (reduce #'+ (slots-to-store class)
-             :key (lambda (x)
-                    (object-size (slot-definition-name x))))))
+(defun cache-class (class id)
+  (when (< (length *classes*) id)
+    (adjust-array *classes* (1+ id)))
+  (setf (aref *classes* id) class))
 
 (defmethod write-object ((class storable-class) stream)
   (write-n-bytes #.(type-code 'storable-class) 1 stream)
   (write-object (class-name class) stream)
+  (write-n-bytes (class-id class) +class-id-length+ stream)
   (unless (class-finalized-p class)
     (finalize-inheritance class))
   (let ((slots (slots-to-store class)))
@@ -704,9 +536,10 @@
 
 (defreader storable-class (stream)
   (let ((class (find-class (read-next-object stream))))
+    (cache-class class
+                 (read-n-bytes +class-id-length+ stream))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (setf (objects-of-class class) nil)
     (let* ((length (read-n-bytes +sequence-length+ stream))
            (vector (make-array length)))
       (loop for i below length
@@ -720,47 +553,48 @@
 
 ;;; identifiable
 
-(defmethod object-size ((object identifiable))
-  (+ 1 ;; type
-     +id-length+))
-
 (defmethod write-object ((object identifiable) stream)
-  (write-n-bytes #.(type-code 'identifiable) 1 stream)
-  (write-n-bytes (id object) +id-length+ stream))
+  (let* ((class (class-of object))
+         (class-id (get-class-id class stream)))
+    (write-n-bytes #.(type-code 'identifiable) 1 stream)
+    (write-n-bytes class-id +class-id-length+ stream)
+    (write-n-bytes (id object) +id-length+ stream)))
+
+(defun get-class (id)
+  (aref *classes* id))
 
 (declaim (inline get-instance))
-(defun get-instance (id)
-  (aref *indexes* id))
+(defun get-instance (class-id id)
+  (or (gethash id *indexes*)
+      (setf (gethash id *indexes*)
+            (fast-allocate-instance (get-class class-id)))))
 
 (defreader identifiable (stream)
-  (get-instance (read-n-bytes +id-length+ stream)))
+  (get-instance (read-n-bytes +class-id-length+ stream)
+                (read-n-bytes +id-length+ stream)))
 
 ;;; standard-object
 
-(defun standard-object-size (object)
-  (let ((slots (slot-locations-and-initforms (class-of object))))
-    (declare (simple-vector slots))
-    (+ 1           ;; data type
-       +class-id-length+
-       +id-length+
-       (loop for (location . initform) across slots
-             sum (let ((value (standard-instance-access object
-                                                        location)))
-                   (if (eql value initform)
-                       0
-                       (+ 1 ;; slot id
-                          (object-size value)))))
-       1))) ;; end-of-slots
+(defun store-class (class stream)
+  (let ((id (vector-push-extend class *classes*)))
+    (setf (class-id class) id)
+    (write-object class stream)
+    id))
+
+(defun get-class-id (class stream)
+  (or (position class *classes* :test #'eq)
+      (store-class class stream)))
 
 ;;; Can't use write-object method, because it would conflict with
 ;;; writing a pointer to a standard object
 (defun write-standard-object (object stream)
-  (write-n-bytes #.(type-code 'standard-object) 1 stream)
   (let* ((class (class-of object))
-         (slots (slot-locations-and-initforms class)))
+         (slots (slot-locations-and-initforms class))
+         (class-id (get-class-id class stream)))
     (declare (simple-vector slots))
+    (write-n-bytes #.(type-code 'standard-object) 1 stream)
+    (write-n-bytes class-id +class-id-length+ stream)
     (write-n-bytes (id object) +id-length+ stream)
-    (write-n-bytes (class-id class) +class-id-length+ stream)
     (loop for id below (length slots)
           for (location . initform) = (aref slots id)
           for value = (standard-instance-access object location)
@@ -775,8 +609,9 @@
 
 (defreader standard-object (stream)
   (let* ((instance (get-instance
+                    (read-n-bytes +class-id-length+ stream)
                     (read-n-bytes +id-length+ stream)))
-         (class (aref *classes* (read-n-bytes +class-id-length+ stream)))
+         (class (class-of instance))
          (slots (slot-locations-and-initforms-read class)))
     (declare (simple-vector slots))
     (change-instance-class instance class)
@@ -788,10 +623,10 @@
     instance))
 
 ;;;
-#+sbcl (declaim (inline fast-allocate-instance))
+#+sbcl (declaim (inline %fast-allocate-instance))
 
 #+sbcl
-(defun fast-allocate-instance (wrapper initforms)
+(defun %fast-allocate-instance (wrapper initforms)
   (declare (simple-vector initforms))
   (let ((instance (sb-pcl::%make-standard-instance
                    (copy-seq initforms) (sb-pcl::get-instance-hash-code))))
@@ -800,85 +635,33 @@
     instance))
 
 #+sbcl
-(defun preallocate-objects (array)
-  (declare (simple-vector array)
-           (optimize speed))
-  (loop for i below (length array)
-        with class = (find-class 'identifiable)
-        for initforms = (class-initforms class)
-        for wrapper = (sb-pcl::class-wrapper class)
-        do (setf (aref array i)
-                 (fast-allocate-instance wrapper initforms))))
-
-#-sbcl
-(defun initialize-slots (instance slot-cache)
-  (loop for (location . value) across slot-cache
-        do (setf (standard-instance-access instance location)
-                 value))
-  instance)
-
-#-sbcl
-(defun preallocate-objects (array info)
-  (declare (simple-array array))
-  (loop with index = 0
-        for (class . length) in info
-        for slot-cache = (all-slot-locations-and-initforms class)
-        do
-        (setf (objects-of-class class)
-              (loop repeat length
-                    for instance = (allocate-instance class)
-                    collect instance
-                    do (initialize-slots instance slot-cache)
-                       (setf (aref array index) instance)
-                       (incf index)))))
-
-(defun prepare-classes (stream)
-  (setf *indexes* (make-array (read-n-bytes +id-length+ stream)))
-  (preallocate-objects *indexes*)
-  (let* ((length (read-n-bytes +sequence-length+ stream))
-         (classes (make-array length)))
-    (loop for i below length
-          do (setf (aref classes i)
-                   (read-next-object stream)))
-    (setf *classes* classes)))
+(defun fast-allocate-instance (class)
+  (declare (optimize speed))
+  (let ((initforms (class-initforms class))
+        (wrapper (sb-pcl::class-wrapper class)))
+    (%fast-allocate-instance wrapper initforms)))
 
 (defun read-file (function file)
   (with-io-file (stream file)
-    (prepare-classes stream)
     (loop until (stream-end-of-file-p stream)
           do (let ((object (read-next-object stream)))
                (when (typep object 'identifiable)
                  (funcall function object))))))
 
 (defun load-data (collection file function)
-  (let ((*collection* collection)
-        (*indexes* *indexes*)
-        (*classes* nil))
-    (with-packages
+  (let ((*indexes* (make-hash-table :size 1000)))
+    (with-collection collection
       (read-file function file))))
 
 (defun save-data (collection &optional file)
-  (let* ((*collection* collection)
-         (*classes* nil)
-         (size (prepare-data)))
-
-    (with-packages
-      (with-io-file (stream file
-                     :direction :output
-                     :size (measure-size))
-        (dump-data size stream)))))
-
-(defun dump-doc (size document stream)
-  (write-classes-info size stream)
-  (write-standard-object document stream))
+  (with-collection collection
+    (with-io-file (stream file
+                   :direction :output)
+      (dump-data stream))))
 
 (defun save-doc (collection document &optional file)
-  (let* ((*collection* collection)
-         (*classes* nil))
-    (prepare-data document)
-    (with-packages
-      (with-io-file (stream file
-                     :direction :output
-                     :append t
-                     :size (measure-size document))
-        (dump-doc 1 document stream)))))
+  (with-collection collection
+    (with-io-file (stream file
+                   :direction :output
+                   :append t)
+      (write-standard-object document stream))))

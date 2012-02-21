@@ -8,14 +8,6 @@
                 :accessor collections
                 :initform (make-hash-table :test 'equal))))
 
-(defclass collection ()
-  ((name :initarg :name
-         :accessor name)
-   (path :initarg :path
-         :accessor path)
-   (docs :initarg :docs
-         :accessor docs)))
-
 (defclass dbs ()
   ((databases :initarg :databases
         :accessor databases
@@ -80,7 +72,8 @@ sort-collection, sort-collection-temporary and union-collection. "))
     result))
 
 
-(defgeneric duplicate-doc-p (doc test-doc))
+(defgeneric duplicate-doc-p (doc test-doc)
+  (:method ((a t) (b t))))
 
 (defgeneric find-duplicate-doc (collection doc &key function)
   (:documentation "Load collection from a file."))
@@ -111,6 +104,9 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defgeneric store-doc (collection doc &key duplicate-doc-p-func)
   (:documentation "Serialize the doc to file and add it to the collection."))
 
+(defgeneric serialize-doc (collection doc &key)
+  (:documentation "Serialize the doc to file."))
+
 (defmethod store-doc ((collection collection) doc
                       &key (duplicate-doc-p-func 'duplicate-doc-p))
   (let ((dup (and duplicate-doc-p-func
@@ -119,11 +115,11 @@ sort-collection, sort-collection-temporary and union-collection. "))
     (if dup
         (setf dup doc)
         (vector-push-extend doc (docs collection)))
+    (unless (id doc)
+      (setf (id doc) (last-id collection))
+      (incf (last-id collection)))
     (serialize-doc collection doc))
   collection)
-
-(defgeneric serialize-doc (collection doc &key)
-  (:documentation "Serialize the doc to file."))
 
 (defmethod serialize-doc ((collection collection) doc &key)
   (let ((path (make-pathname :type "log" :defaults (path collection))))
@@ -146,11 +142,12 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (:documentation "Load collection from a file."))
 
 (defmethod load-from-file ((collection collection) file)
-  (ensure-directories-exist file)
-  (load-data collection file
-             (lambda (object)
-               (add-doc collection object
-                        :duplicate-doc-p-func #'duplicate-doc-p))))
+  (when (probe-file file)
+    (load-data collection file
+               (lambda (object)
+                 (add-doc collection object
+                          :duplicate-doc-p-func nil ;; #'duplicate-doc-p
+                          )))))
 
 (defgeneric get-collection (xdb name)
     (:documentation "Returns the collection by name."))
@@ -178,10 +175,9 @@ sort-collection, sort-collection-temporary and union-collection. "))
                                                    :collection-class collection-class)))))
     (ensure-directories-exist (path collection))
     (when load-from-file-p
-      
       (load-from-file collection
                       (make-pathname :defaults (path collection)
-                                     :type "snapshot"))
+                                     :type "snap"))
       (load-from-file collection
                       (make-pathname :defaults (path collection)
                                      :type "log")))
