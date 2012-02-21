@@ -23,7 +23,7 @@
    :set-val
    :sum
    :document
-   :data
+   :doc-type
    :key
    :find-doc
    :find-docs

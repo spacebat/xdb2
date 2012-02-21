@@ -133,7 +133,7 @@
 
 (defgeneric test-withxx (db &key test-db))
 
-(defmethod  test-withxx ((db xxx) &key (test-db *test-db*))
+(defmethod  test-withxx ((collection xxx) &key (test-db *test-db*))
   (princ test-db))
 
 (with-db (list 9 9 9) 

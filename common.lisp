@@ -1,5 +1,10 @@
 (in-package #:xdb2)
 
+(defun slot-val (instance slot-name)
+  (if (and instance
+           (slot-boundp instance slot-name))
+      (slot-value instance slot-name)))
+
 (defgeneric get-val (object element &key data-type)
   (:documentation "Returns the value in a object based on the supplied element name and possible type hints."))
 
@@ -9,7 +14,7 @@
       (hash-table
        (gethash element object))
       (standard-object
-       (slot-value object element))
+       (slot-val object element))
       (t
        (if data-type
            (cond 
