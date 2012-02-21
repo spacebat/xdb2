@@ -617,8 +617,8 @@
          (slots (slot-locations-and-initforms-read class)))
     (declare (simple-vector slots))
     (setf (id instance) id)
-    (if (> id (last-id *collection*))
-     (setf (last-id *collection*) id))
+    (if (>= id (last-id *collection*))
+     (setf (last-id *collection*) (1+ id)))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end+)
           do (setf (standard-instance-access instance
