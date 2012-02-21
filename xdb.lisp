@@ -108,7 +108,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (:documentation "Serialize the doc to file."))
 
 (defmethod store-doc ((collection collection) doc
-                      &key (duplicate-doc-p-func 'duplicate-doc-p))
+                      &key (duplicate-doc-p-func #'duplicate-doc-p))
   (let ((dup (and duplicate-doc-p-func
                   (find-duplicate-doc collection doc
                                       :function duplicate-doc-p-func))))
@@ -146,8 +146,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
     (load-data collection file
                (lambda (object)
                  (add-doc collection object
-                          :duplicate-doc-p-func nil ;; #'duplicate-doc-p
-                          )))))
+                          :duplicate-doc-p-func #'duplicate-doc-p)))))
 
 (defgeneric get-collection (xdb name)
     (:documentation "Returns the collection by name."))
