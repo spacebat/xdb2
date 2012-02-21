@@ -88,6 +88,7 @@
 (defconstant +class-id-length+ 2)
 (defconstant +hash-table-length+ 3)
 
+(defconstant +unbound-slot+ 254)
 (defconstant +end+ 255)
 
 (defconstant +ascii-char-limit+ (code-char 128))
@@ -601,7 +602,9 @@
           unless (eql value initform)
           do
           (write-n-bytes id 1 stream)
-          (write-object value stream))
+          (if (eq value 'sb-pcl::..slot-unbound..)
+              (write-n-bytes +unbound-slot+ 1 stream)
+              (write-object value stream)))
     (write-n-bytes +end+ 1 stream)))
 
 (defun change-instance-class (instance class)
@@ -619,7 +622,10 @@
           until (= slot-id +end+)
           do (setf (standard-instance-access instance
                                              (car (aref slots slot-id)))
-                   (read-next-object stream)))
+                   (let ((code (read-n-bytes 1 stream)))
+                     (if (= code +unbound-slot+)
+                         'sb-pcl::..slot-unbound..
+                         (call-reader code stream)))))
     instance))
 
 ;;;
