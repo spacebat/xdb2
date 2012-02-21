@@ -8,6 +8,9 @@
 (defgeneric get-val (object element &key data-type)
   (:documentation "Returns the value in a object based on the supplied element name and possible type hints."))
 
+(defgeneric (setf get-val) (new-value object element &key data-type)
+  (:documentation "Set the value in a object based on the supplied element name and possible type hints."))
+
 (defmethod get-val (object element &key data-type)
   (when object
     (typecase (or data-type object)
