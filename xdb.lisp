@@ -107,7 +107,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defgeneric serialize-doc (collection doc &key)
   (:documentation "Serialize the doc to file."))
 
-(defmethod store-doc :before ((collection collection) doc &rest args)
+(defmethod store-doc :before ((collection collection) (doc identifiable) &rest args)
   (declare (ignore args))
   (unless (id doc)
     (setf (id doc) (last-id collection))

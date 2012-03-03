@@ -14,7 +14,15 @@
    (classes :initform (make-class-cache)
             :accessor classes)
    (last-id :initform 0
-            :accessor last-id)))
+            :accessor last-id)
+   (object-cache :initarg :object-cache
+                 :initform (make-hash-table :size 1000
+                                            :test 'eq)
+                 :accessor object-cache)
+   (id-cache :initarg :id-cache
+             :initform (make-hash-table :size 1000
+                                        :test 'eql)
+             :accessor id-cache)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *codes*
@@ -24,6 +32,8 @@
       string
       null
       storable-class
+      storable-object
+      standard-class
       standard-object
       fixnum
       bignum
@@ -128,8 +138,13 @@
   (map-docs
    nil
    (lambda (document)
-     (write-standard-object document stream))
+     (write-top-level-object document stream))
    *collection*))
+
+(defun write-top-level-object (object stream)
+  (if (typep object 'identifiable)
+      (write-storable-object object stream)
+      (write-object object stream)))
 
 (declaim (inline read-next-object))
 (defun read-next-object (stream)
@@ -526,16 +541,20 @@
   (setf (aref *classes* id) class))
 
 (defmethod write-object ((class storable-class) stream)
-  (write-n-bytes #.(type-code 'storable-class) 1 stream)
-  (write-object (class-name class) stream)
-  (write-n-bytes (class-id class) +class-id-length+ stream)
-  (unless (class-finalized-p class)
-    (finalize-inheritance class))
-  (let ((slots (slots-to-store class)))
-    (write-n-bytes (length slots) +sequence-length+ stream)
-    (loop for slot across slots
-          do (write-object (slot-definition-name slot)
-                           stream))))
+  (cond ((position class *classes* :test #'eq))
+        (t
+         (unless (class-finalized-p class)
+           (finalize-inheritance class))
+         (let ((id (vector-push-extend class *classes*))
+               (slots (slots-to-store class)))
+           (write-n-bytes #.(type-code 'storable-class) 1 stream)
+           (write-object (class-name class) stream)
+           (write-n-bytes id +class-id-length+ stream)
+           (write-n-bytes (length slots) +sequence-length+ stream)
+           (loop for slot across slots
+                 do (write-object (slot-definition-name slot)
+                                  stream))
+           id))))
 
 (defreader storable-class (stream)
   (let ((class (find-class (read-next-object stream))))
@@ -576,26 +595,16 @@
   (get-instance (read-n-bytes +class-id-length+ stream)
                 (read-n-bytes +id-length+ stream)))
 
-;;; standard-object
-
-(defun store-class (class stream)
-  (let ((id (vector-push-extend class *classes*)))
-    (setf (class-id class) id)
-    (write-object class stream)
-    id))
-
-(defun get-class-id (class stream)
-  (or (position class *classes* :test #'eq)
-      (store-class class stream)))
+;;; storable-object
 
 ;;; Can't use write-object method, because it would conflict with
 ;;; writing a pointer to a standard object
-(defun write-standard-object (object stream)
+(defun write-storable-object (object stream)
   (let* ((class (class-of object))
          (slots (slot-locations-and-initforms class))
-         (class-id (get-class-id class stream)))
+         (class-id (write-object class stream)))
     (declare (simple-vector slots))
-    (write-n-bytes #.(type-code 'standard-object) 1 stream)
+    (write-n-bytes #.(type-code 'storable-object) 1 stream)
     (write-n-bytes class-id +class-id-length+ stream)
     (write-n-bytes (id object) +id-length+ stream)
     (loop for id below (length slots)
@@ -609,7 +618,7 @@
               (write-object value stream)))
     (write-n-bytes +end+ 1 stream)))
 
-(defreader standard-object (stream)
+(defreader storable-object (stream)
   (let* ((class-id (read-n-bytes +class-id-length+ stream))
          (id (read-n-bytes +id-length+ stream))
          (instance (get-instance class-id id))
@@ -629,6 +638,90 @@
                          (call-reader code stream)))))
     instance))
 
+;;; standard-class
+
+(defmethod write-object ((class standard-class) stream)
+  (cond ((position class *classes* :test #'eq))
+        (t
+         (unless (class-finalized-p class)
+           (finalize-inheritance class))
+         (let ((id (vector-push-extend class *classes*))
+               (slots (class-slots class)))
+           (write-n-bytes #.(type-code 'standard-class) 1 stream)
+           (write-object (class-name class) stream)
+           (write-n-bytes id +class-id-length+ stream)
+           (write-n-bytes (length slots) +sequence-length+ stream)
+           (loop for slot in slots
+                 do (write-object (slot-definition-name slot)
+                                  stream))
+           id))))
+
+(defreader standard-class (stream)
+  (let ((class (find-class (read-next-object stream))))
+    (cache-class class
+                 (read-n-bytes +class-id-length+ stream))
+    (unless (class-finalized-p class)
+      (finalize-inheritance class))
+    (let* ((length (read-n-bytes +sequence-length+ stream))
+           (vector (make-array length)))
+      (loop for i below length
+            for slot-d =
+            (slot-effective-definition class (read-next-object stream))
+            ;;do  (setf (aref vector i)
+            ;;       (cons (slot-definition-location slot-d)
+            ;;             (slot-definition-initform slot-d)))
+            ))
+    class))
+
+;;; standard-object
+
+(defun get-object-id (object)
+  (let ((cache (object-cache *collection*)))
+    (or (gethash object cache)
+        (prog1
+            (setf (gethash object cache)
+                  (last-id *collection*))
+          (incf (last-id *collection*))))))
+
+(defmethod write-object ((object standard-object) stream)
+  (let* ((class (class-of object))
+         (slots (class-slots class))
+         (class-id (write-object class stream)))
+    (write-n-bytes #.(type-code 'standard-object) 1 stream)
+    (write-n-bytes class-id +class-id-length+ stream)
+    (write-n-bytes (get-object-id object) +id-length+ stream)
+    (loop for id from 0
+          for slot in slots
+          for location = (slot-definition-location slot)
+          for initform = (slot-definition-initform slot)
+          for value = (standard-instance-access object location)
+          unless (and (constantp initform)
+                      (eql value initform))
+          do
+          (write-n-bytes id 1 stream)
+          (if (eq value 'sb-pcl::..slot-unbound..)
+              (write-n-bytes +unbound-slot+ 1 stream)
+              (write-object value stream)))
+    (write-n-bytes +end+ 1 stream)))
+
+(defreader standard-object (stream)
+  (let* ((class-id (read-n-bytes +class-id-length+ stream))
+         (id (read-n-bytes +id-length+ stream))
+         (instance (get-instance class-id id))
+         (class (class-of instance))
+         (slots (class-slots class)))
+    (loop for slot-id = (read-n-bytes 1 stream)
+          until (= slot-id +end+)
+          do
+          (setf (standard-instance-access instance
+                                          (slot-definition-location
+                                           (nth slot-id slots)))
+                (let ((code (read-n-bytes 1 stream)))
+                  (if (= code +unbound-slot+)
+                      'sb-pcl::..slot-unbound..
+                      (call-reader code stream)))))
+    instance))
+
 ;;;
 #+sbcl (declaim (inline %fast-allocate-instance))
 
@@ -644,15 +737,18 @@
 #+sbcl
 (defun fast-allocate-instance (class)
   (declare (optimize speed))
-  (let ((initforms (class-initforms class))
-        (wrapper (sb-pcl::class-wrapper class)))
-    (%fast-allocate-instance wrapper initforms)))
+  (if (typep class 'storable-class)
+      (let ((initforms (class-initforms class))
+            (wrapper (sb-pcl::class-wrapper class)))
+        (%fast-allocate-instance wrapper initforms))
+      (allocate-instance class)))
 
 (defun read-file (function file)
   (with-io-file (stream file)
     (loop until (stream-end-of-file-p stream)
           do (let ((object (read-next-object stream)))
-               (when (typep object 'identifiable)
+               (when (and (not (typep object 'class))
+                          (typep object 'standard-object))
                  (funcall function object))))))
 
 (defun load-data (collection file function)
@@ -671,4 +767,4 @@
     (with-io-file (stream file
                    :direction :output
                    :append t)
-      (write-standard-object document stream))))
+      (write-top-level-object document stream))))

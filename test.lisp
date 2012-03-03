@@ -5,7 +5,7 @@
 (defparameter *tree* nil)
 
 (defun make-doc-test (type key data)
-  (let ((doc-obj (make-instance 'document :key key :type type)))
+  (let ((doc-obj (make-instance 'test-docx :key key :type type)))
     (dolist (pair data)
       (setf (gethash (first pair) (data doc-obj)) (second pair)))
     doc-obj))
@@ -28,16 +28,13 @@
                  (list "gg" (format nil "~R" (random 1234)))
                  (list "hh" (format nil "~R" (random 1234))))))))
 
-
-
-(defun test ()
+(defun test (n)
   (let* ((db (make-instance 'xdb :location "/tmp/db-test/"))
-         (col (add-collection db "test" :load-from-file nil)))
-    (vector-push-extend (make-instance 'document :key "dd") (docs col))
-    (time (test-store-doc col 1000))
+         (col (add-collection db "test" :load-from-file-p nil)))
+    (time (test-store-doc col n))
     ;; (time (snapshot db))
     ;; (time (sum col "eid"))
-     (time (find-doc col "eid" 50))
+    ;; (time (find-doc col "eid" 50))
     ;; (time (sort-collection col))
     ))
 
@@ -67,7 +64,7 @@
       (if (equal (mod i 100000) 0)
           (sb-ext:gc :full t))))
 
-(defclass test-docx (document)
+(defclass test-docx ()
   ((id :initarg :id)
    (eid :initarg :eid)
    (aa :initarg :aa)
@@ -77,7 +74,14 @@
    (ee :initarg :ee)
    (ff :initarg :ff)
    (hh :initarg :hh)
-   )
+   (data :initarg :data
+         :initform (make-hash-table)
+         :accessor data)
+   (key :initarg :key
+        :initform nil
+        :accessor key)
+   (type :initarg :type
+         :initform nil))
   (:metaclass storable-class))
 
 
@@ -106,7 +110,6 @@
 
 (defparameter db (make-instance 'xdb :location "/tmp/db-test/"))
 (defparameter col (add-collection db "test" :load-from-file-p nil))
-(setf *fsync-data* nil)
 (time (test-store-docxx col 10000))
 (time (sum col  :element 'eid))
 (time (find-doc col :test (lambda (doc) (equal (get-val doc 'eid) 50))))
