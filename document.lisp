@@ -2,8 +2,7 @@
 
 (defclass document ()
   ((collection :initarg :collection
-               :accessor collection
-               :storep nil)
+               :accessor collection)
    (key :initarg :key
         :accessor key)
    (type :initarg :type

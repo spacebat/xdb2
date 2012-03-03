@@ -48,7 +48,8 @@
       simple-vector
       array
       hash-table
-      pathname)))
+      pathname
+      collection)))
 
 (defvar *statistics* ())
 (defun collect-stats (code)
@@ -721,6 +722,15 @@
                       'sb-pcl::..slot-unbound..
                       (call-reader code stream)))))
     instance))
+
+;;; collection
+
+(defmethod write-object ((collection collection) stream)
+  (write-n-bytes #.(type-code 'collection) 1 stream))
+
+(defreader collection (stream)
+  (declare (ignore stream))
+  *collection*)
 
 ;;;
 #+sbcl (declaim (inline %fast-allocate-instance))
