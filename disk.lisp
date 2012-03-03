@@ -35,6 +35,7 @@
       storable-object
       standard-class
       standard-object
+      standard-link
       fixnum
       bignum
       ratio
@@ -67,6 +68,9 @@
 (declaim (vector *classes* *packages*))
 
 (defvar *indexes*)
+(declaim (hash-table *indexes*))
+
+(defvar *written-objects*)
 (declaim (hash-table *indexes*))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -578,7 +582,7 @@
 
 (defmethod write-object ((object identifiable) stream)
   (let* ((class (class-of object))
-         (class-id (get-class-id class stream)))
+         (class-id (write-object class stream)))
     (write-n-bytes #.(type-code 'identifiable) 1 stream)
     (write-n-bytes class-id +class-id-length+ stream)
     (write-n-bytes (id object) +id-length+ stream)))
@@ -674,6 +678,19 @@
             ))
     class))
 
+;;; standard-link
+
+(defun write-standard-link (object stream)
+  (let* ((class (class-of object))
+         (class-id (write-object class stream)))
+    (write-n-bytes #.(type-code 'standard-link) 1 stream)
+    (write-n-bytes class-id +class-id-length+ stream)
+    (write-n-bytes (get-object-id object) +id-length+ stream)))
+
+(defreader standard-link (stream)
+  (get-instance (read-n-bytes +class-id-length+ stream)
+                (read-n-bytes +id-length+ stream)))
+
 ;;; standard-object
 
 (defun get-object-id (object)
@@ -685,25 +702,28 @@
           (incf (last-id *collection*))))))
 
 (defmethod write-object ((object standard-object) stream)
-  (let* ((class (class-of object))
-         (slots (class-slots class))
-         (class-id (write-object class stream)))
-    (write-n-bytes #.(type-code 'standard-object) 1 stream)
-    (write-n-bytes class-id +class-id-length+ stream)
-    (write-n-bytes (get-object-id object) +id-length+ stream)
-    (loop for id from 0
-          for slot in slots
-          for location = (slot-definition-location slot)
-          for initform = (slot-definition-initform slot)
-          for value = (standard-instance-access object location)
-          unless (and (constantp initform)
-                      (eql value initform))
-          do
-          (write-n-bytes id 1 stream)
-          (if (eq value 'sb-pcl::..slot-unbound..)
-              (write-n-bytes +unbound-slot+ 1 stream)
-              (write-object value stream)))
-    (write-n-bytes +end+ 1 stream)))
+  (if (gethash object *written-objects*)
+      (write-standard-link object stream)
+      (let* ((class (class-of object))
+             (slots (class-slots class))
+             (class-id (write-object class stream)))
+        (write-n-bytes #.(type-code 'standard-object) 1 stream)
+        (write-n-bytes class-id +class-id-length+ stream)
+        (write-n-bytes (get-object-id object) +id-length+ stream)
+        (setf (gethash object *written-objects*) t)
+        (loop for id from 0
+              for slot in slots
+              for location = (slot-definition-location slot)
+              for initform = (slot-definition-initform slot)
+              for value = (standard-instance-access object location)
+              unless (and (constantp initform)
+                          (eql value initform))
+              do
+              (write-n-bytes id 1 stream)
+              (if (eq value 'sb-pcl::..slot-unbound..)
+                  (write-n-bytes +unbound-slot+ 1 stream)
+                  (write-object value stream)))
+        (write-n-bytes +end+ 1 stream))))
 
 (defreader standard-object (stream)
   (let* ((class-id (read-n-bytes +class-id-length+ stream))
@@ -767,14 +787,16 @@
       (read-file function file))))
 
 (defun save-data (collection &optional file)
-  (with-collection collection
-    (with-io-file (stream file
-                   :direction :output)
-      (dump-data stream))))
+  (let ((*written-objects* (make-hash-table :test 'eq)))
+    (with-collection collection
+      (with-io-file (stream file
+                     :direction :output)
+        (dump-data stream)))))
 
 (defun save-doc (collection document &optional file)
-  (with-collection collection
-    (with-io-file (stream file
-                   :direction :output
-                   :append t)
-      (write-top-level-object document stream))))
+  (let ((*written-objects* (make-hash-table :test 'eq)))
+    (with-collection collection
+      (with-io-file (stream file
+                     :direction :output
+                     :append t)
+        (write-top-level-object document stream)))))
