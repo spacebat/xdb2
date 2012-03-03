@@ -8,8 +8,7 @@
         :accessor key)
    (type :initarg :type
          :initform nil
-         :accessor doc-type))
-  (:metaclass storable-class))
+         :accessor doc-type)))
 
 (defmethod duplicate-doc-p ((doc document) test-doc)
   (or (eq doc test-doc)
@@ -43,7 +42,7 @@
 
 (defmethod get-val ((composite-doc document-join-result) element &key data-type)
   (declare (ignore data-type))
-  (map 'list 
+  (map 'list
        (lambda (doc)
          (cons (doc-type doc) (get-val doc element)))
        (docs composite-doc)))
@@ -68,7 +67,7 @@
        collection)))
 
 (defmethod find-docs (return-type test (collection document-join) &rest more-collections )
-  (apply #'map-docs 
+  (apply #'map-docs
          return-type
          (lambda (doc)
            (when (apply test doc)
