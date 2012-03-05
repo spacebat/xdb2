@@ -5,7 +5,7 @@
                :accessor collection)
    (key :initarg :key
         :accessor key)
-   (type :initarg :type
+   (doc-type :initarg :doc-type
          :initform nil
          :accessor doc-type)))
 
@@ -25,7 +25,7 @@
 (defmethod get-val ((doc document) element &key data-type)
   (declare (ignore data-type))
   (if (slot-boundp doc element)
-      (slot-value doc element)))
+      (slot-val doc element)))
 
 (defmethod (setf get-val) (new-value (doc document) element &key data-type)
   (declare (ignore data-type))

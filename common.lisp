@@ -12,6 +12,7 @@
   (:documentation "Set the value in a object based on the supplied element name and possible type hints."))
 
 (defmethod get-val (object element &key data-type)
+
   (when object
     (typecase (or data-type object)
       (hash-table
@@ -19,17 +20,19 @@
       (standard-object
        (slot-val object element))
       (t
+       
+
        (if data-type
            (cond 
              ((equal 'alist data-type)
-              (assoc element object))
+              (second (assoc element object :test #'equal)))
              ((equal 'plist data-type)
               (get object element))
              (t
-              (error "Does no handle this type of object")))
+              (error "Does not handle this type of object")))
            (if (listp object)
-               (assoc element object)
-               (error "Does no handle this type of object")))))))
+               (second (assoc element object :test #'equal))
+               (error "Does not handle this type of object")))))))
 
 (defmethod (setf get-val) (new-value object element &key data-type)
   (typecase (or data-type object)
@@ -38,11 +41,12 @@
     (t
      (if data-type
          (cond ((equal 'alist data-type)
-                (assoc element object))
+                (replace object (list (list element new-value))))
                ((equal 'plist data-type)
+                ;;TODO: Implement this properly.
                 (get object element )))
          (if (listp object)
-             (assoc element object))))))
+              (replace object (list (list element new-value))))))))
 
 (defun copy-array (array)
   (let ((new-array

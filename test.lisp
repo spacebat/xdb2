@@ -4,6 +4,27 @@
 
 (defparameter *tree* nil)
 
+(defclass test-docx ()
+  ((id :initarg :id)
+   (eid :initarg :eid)
+   (aa :initarg :aa)
+   (bb :initarg :bb)
+   (cc :initarg :cc)
+   (dd :initarg :dd)
+   (ee :initarg :ee)
+   (ff :initarg :ff)
+   (hh :initarg :hh)
+   (data :initarg :data
+         :initform (make-hash-table)
+         :accessor data)
+   (key :initarg :key
+        :initform nil
+        :accessor key)
+   (type :initarg :type
+         :initform nil))
+  (:metaclass storable-class))
+
+
 (defun make-doc-test (type key data)
   (let ((doc-obj (make-instance 'test-docx :key key :type type)))
     (dolist (pair data)
@@ -38,8 +59,6 @@
     ;; (time (sort-collection col))
     ))
 
-
-
 (defun test-store-docx (collection times)
   (dotimes (i times)
 
@@ -64,25 +83,7 @@
       (if (equal (mod i 100000) 0)
           (sb-ext:gc :full t))))
 
-(defclass test-docx ()
-  ((id :initarg :id)
-   (eid :initarg :eid)
-   (aa :initarg :aa)
-   (bb :initarg :bb)
-   (cc :initarg :cc)
-   (dd :initarg :dd)
-   (ee :initarg :ee)
-   (ff :initarg :ff)
-   (hh :initarg :hh)
-   (data :initarg :data
-         :initform (make-hash-table)
-         :accessor data)
-   (key :initarg :key
-        :initform nil
-        :accessor key)
-   (type :initarg :type
-         :initform nil))
-  (:metaclass storable-class))
+
 
 
 (defun test-store-docxx (collection times)
@@ -106,14 +107,69 @@
           (sb-ext:gc :full t))))
 
 
+(defun test-store-doc-hash (collection times)
+  (dotimes (i times)
+      (let ((hash (make-hash-table :test 'equal)))
+        (setf (gethash 'key hash) i)
+        (setf (gethash "id" hash) i)
+        (setf (gethash "eid" hash) i)
+        (setf (gethash "bb" hash) (format nil "~R" (random 1234)))
+        (setf (gethash "cc" hash) (format nil "~R" (random 1234)))
+        (setf (gethash "dd" hash) (format nil "~R" (random 1234)))
+        (setf (gethash "ee" hash) (format nil "~R" (random 1234)))
+        (setf (gethash "ff" hash) (format nil "~R" (random 1234)))
+        (setf (gethash "stamp" hash) (get-universal-time))
+        (store-doc collection hash))
+      
+      (if (equal (mod i 100000) 0)
+          (sb-ext:gc :full t))))
+
+
+(defun test-store-doc-list (collection times)
+  (dotimes (i times)
+      (store-doc collection (list
+                             (list 'key i)
+                             (list "id" i)
+                             (list "eid" i)
+                             (list "aa" (random 51234))
+                             (list "bb" (format nil "~R" (random 1234)))
+                             (list "cc" (format nil "~R" (random 1234)))
+                             (list "dd" (format nil "~R" (random 1234)))
+                             (list "ee" (format nil "~R" (random 1234)))
+                             (list "ff" (format nil "~R" (random 1234)))
+                             (list "gg" (format nil "~R" (random 1234)))
+                             (list "stamp" (get-universal-time))))
+      
+      (if (equal (mod i 100000) 0)
+          (sb-ext:gc :full t))))
+
+
 #|
 
 (defparameter db (make-instance 'xdb :location "/tmp/db-test/"))
-(defparameter col (add-collection db "test" :load-from-file-p nil))
-(time (test-store-docxx col 10000))
-(time (sum col  :element 'eid))
-(time (find-doc col :test (lambda (doc) (equal (get-val doc 'eid) 50))))
-(time (sort-collection col))
+(defparameter col-hash (add-collection db "test-hash" :load-from-file-p nil))
+(format t "Hash Test~%")
+(format t "Store~%")
+(time (test-store-doc-hash col-hash 10000))
+(format t "Sum~%")
+(time (sum col-hash :element "id"))
+(format t "Find~%")
+(time (find-doc col-hash :test (lambda (doc) (equal (get-val doc "id") 500))))
+(format t "Sort~%")
+(time (sort-collection col-hash))
+
+(defparameter col-list (add-collection db "test-list" :load-from-file-p nil))
+(format t "List Test~%")
+(format t "Store~%")
+(time (test-store-doc-list col-list 10000))
+(format t "Sum~%")
+(time (sum col-list :element "id"))
+(format t "Find~%")
+(time (find-doc col-list :test (lambda (doc) (equal (get-val doc "id") 500))))
+(format t "Sort~%")
+(time (sort-collection col-list))
+
+
 (time (let ((x (sort-collection-temporary col)))
         (declare (ignore x))
         "done"))

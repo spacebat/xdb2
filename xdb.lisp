@@ -118,6 +118,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (let ((dup (and duplicate-doc-p-func
                   (find-duplicate-doc collection doc
                                       :function duplicate-doc-p-func))))
+    ;; a document might be considered duplicate based on the data contained and not its eql status as lisp object
     (if dup
         (setf dup doc)
         (vector-push-extend doc (docs collection)))

@@ -12,6 +12,7 @@
         (let ((dup (find-duplicate-doc collection doc :function duplicate-doc-p-func)))
           (if (not dup)
               (vector-push-extend doc (docs collection))
+              ;; a document might be considered duplicate based on the data contained and not its eql status as lisp object
               (setf dup doc) ;;doing this because ???
               ))
         (vector-push-extend doc (docs collection)))))
@@ -27,6 +28,7 @@
       (if dup
           (setf dup doc)
           (vector-push-extend doc (docs collection)))
+
       (serialize-doc collection doc))))
 
 (defgeneric store-document (doc
