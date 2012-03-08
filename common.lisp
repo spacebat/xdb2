@@ -29,10 +29,10 @@
              ((equal 'plist data-type)
               (get object element))
              (t
-              (error "Does not handle this type of object")))
+              (error "Does not handle this type of object. Implement your own get-val method.")))
            (if (listp object)
                (second (assoc element object :test #'equal))
-               (error "Does not handle this type of object")))))))
+               (error "Does not handle this type of object. Implement your own get-val method.")))))))
 
 (defmethod (setf get-val) (new-value object element &key data-type)
   (typecase (or data-type object)
@@ -44,9 +44,12 @@
                 (replace object (list (list element new-value))))
                ((equal 'plist data-type)
                 ;;TODO: Implement this properly.
-                (get object element )))
+                (get object element ))
+               (t
+              (error "Does not handle this type of object. Implement your own get-val method.")))
          (if (listp object)
-              (replace object (list (list element new-value))))))))
+              (replace object (list (list element new-value)))
+              (error "Does not handle this type of object. Implement your own get-val method."))))))
 
 (defun copy-array (array)
   (let ((new-array

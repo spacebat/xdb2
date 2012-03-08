@@ -4,7 +4,27 @@
 
 (defparameter *tree* nil)
 
-(defclass test-docx ()
+(defclass test-doc-non-storable ()
+  ((id :initarg :id)
+   (eid :initarg :eid)
+   (aa :initarg :aa)
+   (bb :initarg :bb)
+   (cc :initarg :cc)
+   (dd :initarg :dd)
+   (ee :initarg :ee)
+   (ff :initarg :ff)
+   (hh :initarg :hh)
+   (data :initarg :data
+         :initform (make-hash-table)
+         :accessor data)
+   (key :initarg :key
+        :initform nil
+        :accessor key)
+   (type :initarg :type
+         :initform nil))
+  )
+
+(defclass test-doc-storable ()
   ((id :initarg :id)
    (eid :initarg :eid)
    (aa :initarg :aa)
@@ -26,7 +46,7 @@
 
 
 (defun make-doc-test (type key data)
-  (let ((doc-obj (make-instance 'test-docx :key key :type type)))
+  (let ((doc-obj (make-instance 'test-doc-storable :key key :type type)))
     (dolist (pair data)
       (setf (gethash (first pair) (data doc-obj)) (second pair)))
     doc-obj))
@@ -86,11 +106,29 @@
 
 
 
-(defun test-store-docxx (collection times)
+(defun test-store-doc-storable-object (collection times)
   (dotimes (i times)
-
       (store-doc collection  
-                 (make-instance 'test-docx :key i :type "Test Doc"
+                 (make-instance 'test-doc-storable :key i :type "Test Doc"
+                                :id i
+                                :eid i
+                                :aa (random 51234)
+                                :bb (format nil "~R" (random 1234))
+                                :cc (format nil "~R" (random 1234))
+                                :dd (format nil "~R" (random 1234))
+                                :ee (format nil "~R" (random 1234))
+                                :ff (format nil "~R" (random 1234))
+                                :hh (get-universal-time))
+                 
+                 )
+      
+      (if (equal (mod i 100000) 0)
+          (sb-ext:gc :full t))))
+
+(defun test-store-doc-non-storable-object (collection times)
+  (dotimes (i times)
+      (store-doc collection  
+                 (make-instance 'test-doc-non-storable :key i :type "Test Doc"
                                 :id i
                                 :eid i
                                 :aa (random 51234)
@@ -147,6 +185,7 @@
 #|
 
 (defparameter db (make-instance 'xdb :location "/tmp/db-test/"))
+
 (defparameter col-hash (add-collection db "test-hash" :load-from-file-p nil))
 (format t "Hash Test~%")
 (format t "Store~%")
@@ -169,12 +208,35 @@
 (format t "Sort~%")
 (time (sort-collection col-list))
 
+(defparameter col-object (add-collection db "test-object" :load-from-file-p nil))
+(format t "Object non storable Test~%")
+(format t "Store~%")
+(time (test-store-doc-non-storable-object col-object 10000))
+(format t "Sum~%")
+(time (sum col-object :element 'id))
+(format t "Find~%")
+(time (find-doc col-object :test (lambda (doc) (equal (get-val doc 'id) 500))))
+(format t "Sort~%")
+(time (sort-collection col-object))
+
+(defparameter col-object-storable (add-collection db "test-object-storable" :load-from-file-p nil))
+(setf *fsync-data* nil)
+(format t "Object storable Test~%")
+(format t "Store~%")
+(time (test-store-doc-storable-object col-object-storable 10000))
+(format t "Sum~%")
+(time (sum col-object-storable :element 'id))
+(format t "Find~%")
+(time (find-doc col-object-storable :test (lambda (doc) (equal (get-val doc 'id) 500))))
+(format t "Sort~%")
+(time (sort-collection col-object-storable))
 
 (time (let ((x (sort-collection-temporary col)))
         (declare (ignore x))
         "done"))
 
 |#
+
 
 
 

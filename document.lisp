@@ -38,7 +38,6 @@
 (defclass document-join-result (join-result)
   ())
 
-
 (defmethod get-val ((composite-doc document-join-result) element &key data-type)
   (declare (ignore data-type))
   (map 'list

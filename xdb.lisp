@@ -318,7 +318,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
    'union-docs 
    :docs (apply #'map-docs (list return-type collection more-collections))))
 
-
 (defmethod find-docs (return-type test (collection union-docs)  &rest more-collections)
   (apply #'map-docs 
          return-type
@@ -328,7 +327,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
          collection
          more-collections))
 
-
 (defclass join-docs ()
   ((docs :initarg :docs
           :accessor :docs)))
@@ -336,8 +334,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defclass join-result ()
   ((docs :initarg :docs
           :accessor :docs)))
-
-
 
 (defun sort-key (doc)
   (get-val doc 'key))
