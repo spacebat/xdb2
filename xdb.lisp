@@ -23,24 +23,27 @@
   (gethash name (databases dbs)))
 
 (defgeneric add-db (dbs name &key base-path load-from-file-p)
-  (:documentation "Adds a xdb to the dbs hashtable. A base-path can be 
-supplied here that is independatn of the dbs base-path so that a 
+  (:documentation "Adds a xdb to the dbs hashtable. A base-path can be
+supplied here that is independatn of the dbs base-path so that a
 database collection can be build that spans multiple disks etc."))
 
-(defmethod add-db ((db dbs) name &key base-path load-from-file-p)
-  (unless (gethash name (databases db))
-    (let ((path (or base-path (base-path db))))    
-      (if (listp name)
-          (dolist (part name)
-            (setf path (format nil "~A/~A/" path (string-downcase part))))
-          (setf path (format nil path name)))
+(defun parse-db-path (path)
+  (make-pathname :directory
+                 (list* :relative
+                        (etypecase path
+                          (cons path
+                           path)
+                          (string path
+                           (list path))))))
 
-      (ensure-directories-exist path)
-      (setf (gethash name
-                     (databases db))
-            (make-instance 'xdb 
-                           :location path))
-      (load-db (gethash name (databases db)) :load-from-file-p load-from-file-p))))
+(defmethod add-db ((dbs dbs) name &key base-path load-from-file-p)
+  (unless (gethash name (databases dbs))
+    (let* ((base-path (or base-path (base-path dbs)))
+           (db-path (merge-pathnames (parse-db-path name) base-path))
+           (db (make-instance 'xdb :location db-path)))
+      (ensure-directories-exist db-path)
+      (setf (gethash name (databases dbs)) db)
+      (load-db (print db) :load-from-file-p load-from-file-p))))
 
 (defparameter *dbs* nil)
 
@@ -96,7 +99,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
         (let ((dup (find-duplicate-doc collection doc :function duplicate-doc-p-func)))
           (if (not dup)
               (vector-push-extend doc (docs collection))
-              (setf dup doc) ;;doing this because 
+              (setf dup doc) ;;doing this because
               ))
         (vector-push-extend doc (docs collection)))))
 
@@ -170,11 +173,11 @@ sort-collection, sort-collection-temporary and union-collection. "))
     (initialize-doc-container collection)
     collection))
 
-(defmethod add-collection ((db xdb) name 
+(defmethod add-collection ((db xdb) name
                            &key (collection-class 'collection) load-from-file-p)
   (let ((collection (or (gethash name (collections db))
                         (setf (gethash name (collections db))
-                              (make-new-collection name db 
+                              (make-new-collection name db
                                                    :collection-class collection-class)))))
     (ensure-directories-exist (path collection))
     (when load-from-file-p
@@ -183,8 +186,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
                                      :type "snap"))
       (load-from-file collection
                       (make-pathname :defaults (path collection)
-                                     :type "log"))
-      )
+                                     :type "log")))
     collection))
 
 (defgeneric snapshot (collection)
@@ -229,11 +231,13 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod load-db ((db xdb) &key load-from-file-p)
   (let ((unique-collections (make-hash-table :test 'equal)))
     (dolist (path (directory (format nil "~A/*.*" (location db))))
-      (setf (gethash (pathname-name path) unique-collections) (pathname-name path)))
+      (when (pathname-name path)
+        (setf (gethash (pathname-name path) unique-collections)
+              (pathname-name path))))
     (maphash  #'(lambda (key value)
                   (declare (ignore key))
-               (add-collection db value :load-from-file-p load-from-file-p))
-             unique-collections)))
+                  (add-collection db value :load-from-file-p load-from-file-p))
+              unique-collections)))
 
 (defgeneric get-docs (xdb collection-name &key return-type &allow-other-keys)
   (:documentation "Returns the docs that belong to a collection."))
@@ -241,7 +245,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defmethod get-docs ((db xdb) collection-name &key return-type)
   (let ((col (gethash collection-name (collections db))))
     (if return-type
-        (coerce return-type 
+        (coerce return-type
                 (docs col))
         (docs col))))
 
@@ -288,7 +292,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (:documentation "Returns the first doc that matches the test."))
 
 (defmethod find-doc-complex (test collection &rest more-collections)
-  (apply #'map-docs 
+  (apply #'map-docs
          (lambda (doc)
            (when (funcall test doc)
              (return-from find-doc-complex doc)))
@@ -299,7 +303,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (:documentation "Returns a list of all the docs that matches the test."))
 
 (defmethod find-docs (return-type test (collection collection) &rest more-collections )
-  (apply #'map-docs 
+  (apply #'map-docs
          return-type
          (lambda (doc)
            (when (funcall test doc)
@@ -314,12 +318,12 @@ sort-collection, sort-collection-temporary and union-collection. "))
 (defgeneric union-collection (return-type collection &rest more-collections))
 
 (defmethod union-collection (return-type (collection collection) &rest more-collections)
-  (make-instance 
-   'union-docs 
+  (make-instance
+   'union-docs
    :docs (apply #'map-docs (list return-type collection more-collections))))
 
 (defmethod find-docs (return-type test (collection union-docs)  &rest more-collections)
-  (apply #'map-docs 
+  (apply #'map-docs
          return-type
          (lambda (doc)
            (when (apply test doc)
@@ -343,13 +347,13 @@ sort-collection, sort-collection-temporary and union-collection. "))
 
 ;;TODO: How to update log if collection is sorted? Make a snapshot?
 
-(defmethod sort-collection ((collection collection) 
+(defmethod sort-collection ((collection collection)
                             &key return-sort sort-value-func sort-test-func)
-  (setf (docs collection) 
-        (sort (docs collection) 
+  (setf (docs collection)
+        (sort (docs collection)
               (if sort-test-func
                   sort-test-func
-                  #'>) 
+                  #'>)
               :key (if sort-value-func
                        sort-value-func
                        #'sort-key)))
@@ -358,20 +362,19 @@ sort-collection, sort-collection-temporary and union-collection. "))
       t))
 
 (defgeneric sort-collection-temporary (collection &key sort-value-func sort-test-func)
-  (:documentation "This does not sort the actual collection but returns an array 
+  (:documentation "This does not sort the actual collection but returns an array
 of sorted docs."))
 
-(defmethod sort-collection-temporary ((collection collection) 
+(defmethod sort-collection-temporary ((collection collection)
                             &key sort-value-func sort-test-func)
   (let ((sorted-array (copy-array (docs collection))))
-   (setf sorted-array 
-         (sort sorted-array 
+   (setf sorted-array
+         (sort sorted-array
                (if sort-test-func
                    sort-test-func
-                   #'>) 
+                   #'>)
                :key (if sort-value-func
                         sort-value-func
                         #'sort-key)))
    sorted-array))
 ;;Add method for validation when updating a collection.
-
