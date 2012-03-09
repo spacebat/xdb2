@@ -43,7 +43,7 @@ database collection can be build that spans multiple disks etc."))
            (db (make-instance 'xdb :location db-path)))
       (ensure-directories-exist db-path)
       (setf (gethash name (databases dbs)) db)
-      (load-db (print db) :load-from-file-p load-from-file-p))))
+      (load-db db :load-from-file-p load-from-file-p))))
 
 (defparameter *dbs* nil)
 
