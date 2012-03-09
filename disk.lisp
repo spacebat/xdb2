@@ -773,6 +773,10 @@
         (%fast-allocate-instance wrapper initforms))
       (allocate-instance class)))
 
+(defun clear-cache (collection)
+  (setf (classes collection) (make-class-cache)
+        (packages collection) (make-s-packages)))
+
 (defun read-file (function file)
   (with-io-file (stream file)
     (loop until (stream-end-of-file-p stream)
@@ -788,10 +792,13 @@
 
 (defun save-data (collection &optional file)
   (let ((*written-objects* (make-hash-table :test 'eq)))
+    (clear-cache collection)
     (with-collection collection
       (with-io-file (stream file
                      :direction :output)
-        (dump-data stream)))))
+        (dump-data stream)))
+    (clear-cache collection)
+    (values)))
 
 (defun save-doc (collection document &optional file)
   (let ((*written-objects* (make-hash-table :test 'eq)))
