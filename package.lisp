@@ -22,6 +22,7 @@
    :get-val
    :set-val
    :sum
+   :max-val
    :document
    :doc-type
    :key
@@ -33,4 +34,6 @@
    :storable-class
    :dbs
    :get-db
-   :add-db))
+   :add-db
+   :enable-sequences
+   :next-sequence))

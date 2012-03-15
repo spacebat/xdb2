@@ -13,3 +13,18 @@ the return values."))
               function
               collection)
     sum))
+
+(defgeneric max-val (collection &key function element))
+
+(defmethod max-val ((collection collection) &key function element)
+  (let* ((max 0)
+         (function (or function
+                       (lambda (doc)
+                         (if (get-val doc element)
+                             (if (> (get-val doc element) max)
+                                 (setf max (get-val doc element))))))))
+    (map-docs nil
+              function
+              collection)
+    max))
+

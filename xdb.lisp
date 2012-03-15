@@ -16,6 +16,8 @@
               :initform "/tmp/xdb2/dbs/"
               :accessor base-path)))
 
+
+
 (defgeneric get-db (dbs name)
     (:documentation "Returns the xdb by name."))
 
@@ -43,12 +45,16 @@ database collection can be build that spans multiple disks etc."))
            (db (make-instance 'xdb :location db-path)))
       (ensure-directories-exist db-path)
       (setf (gethash name (databases dbs)) db)
-      (load-db db :load-from-file-p load-from-file-p))))
+      (if load-from-file-p
+          (load-db db :load-from-file-p load-from-file-p)))))
 
 (defparameter *dbs* nil)
 
 (defun dbs ()
   *dbs*)
+
+
+
 
 (defgeneric initialize-doc-container (collection)
   (:documentation
@@ -121,7 +127,9 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (let ((dup (and duplicate-doc-p-func
                   (find-duplicate-doc collection doc
                                       :function duplicate-doc-p-func))))
-    ;; a document might be considered duplicate based on the data contained and not its eql status as lisp object
+    ;; a document might be considered duplicate based on the data 
+    ;;contained and not its eql status as lisp object so we have to replace
+    ;;it in the array with the new object effectively updating the data.
     (if dup
         (setf dup doc)
         (vector-push-extend doc (docs collection)))
@@ -378,3 +386,30 @@ of sorted docs."))
                         #'sort-key)))
    sorted-array))
 ;;Add method for validation when updating a collection.
+
+
+
+(defclass xdb-sequence ()
+  ((key :initarg :key
+         :accessor key)
+   (value :initarg :value
+          :accessor value)))
+
+
+(defgeneric enable-sequences (xdb))
+
+(defmethod enable-sequences ((xdb xdb))
+  (add-collection xdb "sequences" 
+                :collection-class 'collection
+                :load-from-file-p t))
+
+(defgeneric next-sequence (xdb key))
+
+(defmethod next-sequence ((xdb xdb) key)
+  (let ((doc (get-doc (get-collection xdb "sequences") key)))
+    (unless doc
+      (setf doc (make-instance 'xdb-sequence :key key :value 0)))
+    (incf (get-val doc 'value))
+    (store-doc (get-collection xdb "sequences")
+                doc)
+    (get-val doc 'value)))

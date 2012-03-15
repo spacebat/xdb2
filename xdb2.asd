@@ -14,4 +14,4 @@
                (:file "xdb")
                (:file "db-functions")
                (:file "document")
-               (:file "collection-aware")))
+               ))
