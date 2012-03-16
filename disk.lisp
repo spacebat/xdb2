@@ -667,16 +667,14 @@
                  (read-n-bytes +class-id-length+ stream))
     (unless (class-finalized-p class)
       (finalize-inheritance class))
-    (let* ((length (read-n-bytes +sequence-length+ stream))
-           (vector (make-array length)))
+    (let ((length (read-n-bytes +sequence-length+ stream)))
       (loop for i below length
-            for slot-d =
-            (slot-effective-definition class (read-next-object stream))
+            do (slot-effective-definition class (read-next-object stream))
             ;;do  (setf (aref vector i)
             ;;       (cons (slot-definition-location slot-d)
             ;;             (slot-definition-initform slot-d)))
             ))
-    class))
+    (read-next-object stream)))
 
 ;;; standard-link
 
@@ -716,8 +714,6 @@
               for location = (slot-definition-location slot)
               for initform = (slot-definition-initform slot)
               for value = (standard-instance-access object location)
-              unless (and (constantp initform)
-                          (eql value initform))
               do
               (write-n-bytes id 1 stream)
               (if (eq value 'sb-pcl::..slot-unbound..)
