@@ -160,8 +160,7 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (when (probe-file file)
     (load-data collection file
                (lambda (object)
-                 (add-doc collection object
-                          :duplicate-doc-p-func #'duplicate-doc-p)))))
+                 (add-doc collection object)))))
 
 (defgeneric get-collection (xdb name)
     (:documentation "Returns the collection by name."))
