@@ -64,11 +64,3 @@
            (return-from find-doc doc)))
        collection)))
 
-(defmethod find-docs (return-type test (collection document-join) &rest more-collections )
-  (apply #'map-docs
-         return-type
-         (lambda (doc)
-           (when (apply test doc)
-             doc))
-         collection
-         more-collections))

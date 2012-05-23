@@ -80,7 +80,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
           do (setf result (concatenate result-type result results)))
     result))
 
-
 (defgeneric duplicate-doc-p (doc test-doc)
   (:method ((a t) (b t))))
 
@@ -306,17 +305,11 @@ sort-collection, sort-collection-temporary and union-collection. "))
          collection
          (cdr more-collections)))
 
-(defgeneric find-docs (return-type test collection &rest more-collections)
-  (:documentation "Returns a list of all the docs that matches the test."))
-
-(defmethod find-docs (return-type test (collection collection) &rest more-collections )
-  (apply #'map-docs
-         return-type
-         (lambda (doc)
-           (when (funcall test doc)
-             doc))
-         collection
-         more-collections))
+(defun find-docs (return-type test collection)
+  (coerce (loop for doc across (docs collection)
+                when (funcall test doc)
+                collect doc)
+          return-type))
 
 (defclass union-docs ()
   ((docs :initarg :docs
@@ -328,15 +321,6 @@ sort-collection, sort-collection-temporary and union-collection. "))
   (make-instance
    'union-docs
    :docs (apply #'map-docs (list return-type collection more-collections))))
-
-(defmethod find-docs (return-type test (collection union-docs)  &rest more-collections)
-  (apply #'map-docs
-         return-type
-         (lambda (doc)
-           (when (apply test doc)
-             doc))
-         collection
-         more-collections))
 
 (defclass join-docs ()
   ((docs :initarg :docs
