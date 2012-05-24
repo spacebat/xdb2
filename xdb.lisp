@@ -305,7 +305,9 @@ sort-collection, sort-collection-temporary and union-collection. "))
          collection
          (cdr more-collections)))
 
-(defun find-docs (return-type test collection)
+(defgeneric find-docs (return-type test collection))
+
+(defmethod find-docs (return-type test collection)
   (coerce (loop for doc across (docs collection)
                 when (funcall test doc)
                 collect doc)
