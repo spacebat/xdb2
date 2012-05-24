@@ -341,15 +341,12 @@ sort-collection, sort-collection-temporary and union-collection. "))
 ;;TODO: How to update log if collection is sorted? Make a snapshot?
 
 (defmethod sort-collection ((collection collection)
-                            &key return-sort sort-value-func sort-test-func)
+                            &key return-sort
+                            (sort-value-func #'sort-key) (sort-test-func  #'>))
   (setf (docs collection)
         (sort (docs collection)
-              (if sort-test-func
-                  sort-test-func
-                  #'>)
-              :key (if sort-value-func
-                       sort-value-func
-                       #'sort-key)))
+              sort-test-func
+              :key sort-value-func))
   (if return-sort
       (docs collection)
       t))
@@ -359,17 +356,22 @@ sort-collection, sort-collection-temporary and union-collection. "))
 of sorted docs."))
 
 (defmethod sort-collection-temporary ((collection collection)
-                            &key sort-value-func sort-test-func)
+                            &key (sort-value-func #'sort-key) (sort-test-func  #'>))
   (let ((sorted-array (copy-array (docs collection))))
    (setf sorted-array
          (sort sorted-array
-               (if sort-test-func
-                   sort-test-func
-                   #'>)
-               :key (if sort-value-func
-                        sort-value-func
-                        #'sort-key)))
+               sort-test-func
+               :key sort-value-func))
    sorted-array))
+
+
+
+(defun sort-docs (docs &key (sort-value-func #'sort-key) (sort-test-func  #'>))
+  :documentation "Sorts array/list of docs and returns the sorted array."
+  (sort docs
+        sort-test-func
+        :key sort-value-func))
+
 ;;Add method for validation when updating a collection.
 
 

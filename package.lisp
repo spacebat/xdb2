@@ -36,4 +36,5 @@
    :get-db
    :add-db
    :enable-sequences
-   :next-sequence))
+   :next-sequence
+   :sort-docs))
