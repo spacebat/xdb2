@@ -727,16 +727,20 @@
          (instance (get-instance class-id id))
          (class (class-of instance))
          (slots (class-slots class)))
-    (loop for slot-id = (read-n-bytes 1 stream)
-          until (= slot-id +end+)
-          do
-          (setf (standard-instance-access instance
-                                          (slot-definition-location
-                                           (nth slot-id slots)))
-                (let ((code (read-n-bytes 1 stream)))
-                  (if (= code +unbound-slot+)
-                      'sb-pcl::..slot-unbound..
-                      (call-reader code stream)))))
+    (flet ((read-slot ()
+             (let ((code (read-n-bytes 1 stream)))
+               (if (= code +unbound-slot+)
+                   'sb-pcl::..slot-unbound..
+                   (call-reader code stream)))))
+     (loop for slot-id = (read-n-bytes 1 stream)
+           until (= slot-id +end+)
+           do
+           (let ((slot (nth slot-id slots)))
+             (if slot
+                 (setf (standard-instance-access instance
+                                                 (slot-definition-location slot))
+                       (read-slot))
+                 (read-slot)))))
     instance))
 
 ;;; collection
