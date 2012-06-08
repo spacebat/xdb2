@@ -576,7 +576,7 @@
                      (cons (slot-definition-location slot-d)
                            (slot-definition-initform slot-d))))
       (setf (slot-locations-and-initforms-read class) vector))
-    class))
+    (read-next-object stream)))
 
 ;;; identifiable
 
@@ -632,15 +632,17 @@
     (declare (simple-vector slots))
     (setf (id instance) id)
     (if (>= id (last-id *collection*))
-     (setf (last-id *collection*) (1+ id)))
+        (setf (last-id *collection*) (1+ id)))
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end+)
-          do (setf (standard-instance-access instance
-                                             (car (aref slots slot-id)))
-                   (let ((code (read-n-bytes 1 stream)))
-                     (if (= code +unbound-slot+)
-                         'sb-pcl::..slot-unbound..
-                         (call-reader code stream)))))
+          do
+          (print (aref (slots-to-store class) slot-id))
+          (setf (standard-instance-access instance
+                                          (car (aref slots slot-id)))
+                (let ((code (read-n-bytes 1 stream)))
+                  (if (= code +unbound-slot+)
+                      'sb-pcl::..slot-unbound..
+                      (:dbg (call-reader code stream))))))
     instance))
 
 ;;; standard-class
