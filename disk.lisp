@@ -642,7 +642,7 @@
                 (let ((code (read-n-bytes 1 stream)))
                   (if (= code +unbound-slot+)
                       'sb-pcl::..slot-unbound..
-                      (:dbg (call-reader code stream))))))
+                      (call-reader code stream)))))
     instance))
 
 ;;; standard-class
