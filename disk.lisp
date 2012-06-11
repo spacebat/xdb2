@@ -636,7 +636,6 @@
     (loop for slot-id = (read-n-bytes 1 stream)
           until (= slot-id +end+)
           do
-          (print (aref (slots-to-store class) slot-id))
           (setf (standard-instance-access instance
                                           (car (aref slots slot-id)))
                 (let ((code (read-n-bytes 1 stream)))
