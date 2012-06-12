@@ -20,7 +20,10 @@
     :initform nil
     :accessor all-slot-locations-and-initforms)
    (initforms :initform #()
-	      :accessor class-initforms)))
+	      :accessor class-initforms)
+   (id-cache :initarg :id-cache
+             :initform (make-hash-table :size 1000)
+             :accessor id-cache)))
 
 (defun initialize-storable-class (next-method class &rest args
                                   &key direct-superclasses &allow-other-keys)

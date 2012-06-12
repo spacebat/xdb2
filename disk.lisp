@@ -20,8 +20,7 @@
                                             :test 'eq)
                  :accessor object-cache)
    (id-cache :initarg :id-cache
-             :initform (make-hash-table :size 1000
-                                        :test 'eql)
+             :initform (make-hash-table :size 1000)
              :accessor id-cache)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -129,7 +128,8 @@
     `(let* ((,collection-sym ,collection)
             (*collection* ,collection-sym)
             (*packages* (packages ,collection-sym))
-            (*classes* (classes ,collection-sym)))
+            (*classes* (classes ,collection-sym))
+            (*indexes* (id-cache ,collection-sym)))
        ,@body)))
 
 ;;;
@@ -592,9 +592,13 @@
 
 (declaim (inline get-instance))
 (defun get-instance (class-id id)
-  (or (gethash id *indexes*)
-      (setf (gethash id *indexes*)
-            (fast-allocate-instance (get-class class-id)))))
+  (let* ((class (get-class class-id))
+         (index (if (typep class 'storable-class)
+                    (id-cache class)
+                    *indexes*)))
+    (or (gethash id index)
+        (setf (gethash id index)
+              (fast-allocate-instance class)))))
 
 (defreader identifiable (stream)
   (get-instance (read-n-bytes +class-id-length+ stream)
@@ -787,9 +791,8 @@
                  (funcall function object))))))
 
 (defun load-data (collection file function)
-  (let ((*indexes* (make-hash-table :size 1000)))
-    (with-collection collection
-      (read-file function file))))
+  (with-collection collection
+    (read-file function file)))
 
 (defun save-data (collection &optional file)
   (let ((*written-objects* (make-hash-table :test 'eq)))
