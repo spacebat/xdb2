@@ -572,6 +572,7 @@
       (loop for i below length
             for slot-d =
             (slot-effective-definition class (read-next-object stream))
+            when slot-d
             do (setf (aref vector i)
                      (cons (slot-definition-location slot-d)
                            (slot-definition-initform slot-d))))
