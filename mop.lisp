@@ -111,7 +111,10 @@
 ;;;
 
 (defclass identifiable (standard-object)
-  ((id :accessor id
-       :initform nil
-       :storep nil))
+  ((id :initform nil
+       :accessor id
+       :storep nil)
+   (written :initform nil
+            :accessor written
+            :storep nil))
   (:metaclass storable-class))

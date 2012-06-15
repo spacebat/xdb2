@@ -582,11 +582,17 @@
 ;;; identifiable
 
 (defmethod write-object ((object identifiable) stream)
-  (let* ((class (class-of object))
-         (class-id (write-object class stream)))
-    (write-n-bytes #.(type-code 'identifiable) 1 stream)
-    (write-n-bytes class-id +class-id-length+ stream)
-    (write-n-bytes (id object) +id-length+ stream)))
+  (cond ((written object)
+         (let* ((class (class-of object))
+                (class-id (write-object class stream)))
+           (write-n-bytes #.(type-code 'identifiable) 1 stream)
+           (write-n-bytes class-id +class-id-length+ stream)
+           (write-n-bytes (id object) +id-length+ stream)))
+        (t
+         (unless (id object)
+           (setf (id object) (last-id *collection*))
+           (incf (last-id *collection*)))
+         (write-storable-object object stream))))
 
 (defun get-class (id)
   (aref *classes* id))
@@ -617,6 +623,7 @@
     (write-n-bytes #.(type-code 'storable-object) 1 stream)
     (write-n-bytes class-id +class-id-length+ stream)
     (write-n-bytes (id object) +id-length+ stream)
+    (setf (written object) t)
     (loop for id below (length slots)
           for (location . initform) = (aref slots id)
           for value = (standard-instance-access object location)
