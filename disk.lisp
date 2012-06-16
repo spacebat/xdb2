@@ -589,9 +589,6 @@
            (write-n-bytes class-id +class-id-length+ stream)
            (write-n-bytes (id object) +id-length+ stream)))
         (t
-         (unless (id object)
-           (setf (id object) (last-id *collection*))
-           (incf (last-id *collection*)))
          (write-storable-object object stream))))
 
 (defun get-class (id)
@@ -622,6 +619,9 @@
     (declare (simple-vector slots))
     (write-n-bytes #.(type-code 'storable-object) 1 stream)
     (write-n-bytes class-id +class-id-length+ stream)
+    (unless (id object)
+      (setf (id object) (last-id *collection*))
+      (incf (last-id *collection*)))
     (write-n-bytes (id object) +id-length+ stream)
     (setf (written object) t)
     (loop for id below (length slots)
